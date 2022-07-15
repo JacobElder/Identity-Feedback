@@ -17,6 +17,9 @@ source_url("https://raw.githubusercontent.com/JacobElder/MiscellaneousR/master/a
 ```{r}
 rawFirst <- read.csv("~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Input/idFeedRaw1.csv", header = T)
 rawFirst <- rawFirst[!as.numeric(duplicated(rawFirst$id)),]
+
+rawFirst<-rename(rawFirst, "I8_Sims_" = contains("I9_Sims")) # temporary fix
+
 rawSec <- read.csv("~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Input/idFeedRaw2.csv", header = T)
 rawSec <- rawSec[!as.numeric(duplicated(rawSec$id)),]
 tAdjMatP <- read.csv("~/Google Drive/Volumes/Research Project/Trait Network_Behaviral/generating network/output/adjacencyMatrix_p.csv")
@@ -128,78 +131,94 @@ idSubs <- rawFirst %>%
 for(n in 1:nrow(rawFirst)){
   i <- rawFirst$id[n]
   
-  idNames <- idMat[n,2:9]
+  idNames <- idMat[n,2:9] %>% na.omit()
   numIdentities <- sum(!is.na(idMat[n,2:9]))
   
   # subset subject row
   subDf <- rawFirst[rawFirst$id==i,]
   # generate empty matrix
   subMat <- matrix(data = 0, nrow = numIdentities, ncol = numIdentities)
+  subMatW <- matrix(data = 0, nrow = numIdentities, ncol = numIdentities)
   for(c in 1:numIdentities){
     # subset identity "c"
-    j <- idSubs[c]
+    j <- idSubs[n,c]
     # split words by comma
-    selectWord <-strsplit(as.character(idSubs[,c][[1]]),",") 
+    selectWord <-strsplit(as.character(idSubs[n,c][[1]]),",") 
     # which column index are select identities
     ######rowSub <-which(idNames %in% selectWord[[1]])
     # populate 1s for select identities in row
-    subMat[c,as.numeric(unlist(selectWord))] <- 1
-  }
+    subMat[c,as.numeric(unlist(selectWord))] <- 1 # Unweighted matrix
+    diag(subMat) <- 0 # Set diagonal to 0s if participants nominated any self-connections
+    subMatW[c,as.numeric(unlist(selectWord))]  <- (11 / 11) as.numeric ( rawFirst[n,paste0("I",c,"_Sims_",as.numeric(unlist(selectWord) ))]/11 ) # Weighted matrix
+    # Flipped direction of fraction so more overlap is closer between identities
+    
+    diag(subMatW) <- 0 # Set diagonal to 0s if participants nominated any self-connections
+}
   rownames(subMat) <- idNames
   colnames(subMat) <- idNames
+  
+  rownames(subMatW) <- idNames
+  colnames(subMatW) <- idNames
 
     # convert to graph
   subGraph <- graph.adjacency(subMat)
+  subGraphW <- graph.adjacency(subMatW, weighted = T)
   # label
   assign(paste0("subIMat.",i),subMat)
   assign(paste0("subIGraph.",i),subGraph)
+  
+  assign(paste0("subIMatW.",i),subMatW)
+  assign(paste0("subIGraphW.",i),subGraphW)
 }
 
 ```
 
-#### STOPPED HERE ON 7-14-2022
-
 ```{r}
-idSubs <- grep("Race_PosTraits",colnames(rawFirst)):grep("Hob_NegTraits",colnames(rawFirst))
-# create empty matrices 148 traits causing 8 identities because traits don't cause identities
-tAdjMatPI <- as.matrix(cbind(matrix(data=0, ncol=8, nrow=148), tAdjMatP))
-tAdjMatNI <- as.matrix(cbind(matrix(data=0, ncol=8, nrow=148), tAdjMatN))
-for(i in uIds){
+idSubs <- grep("I1_PosTraits",colnames(rawFirst)):grep("I8_NegTraits",colnames(rawFirst))
+
+for(n in 1:nrow(rawFirst)){
+   i <- rawFirst$id[n]
+  
   # subset subject
   subDf <- rawFirst[rawFirst$id==i,]
+  
+  idNames <- idMat[n,2:9] %>% na.omit()
+  numIdentities <- sum(!is.na(idMat[n,2:9]))
+  
+  # create empty matrices 148 traits causing 8 identities because traits don't cause identities
+  tAdjMatPI <- as.matrix(cbind(matrix(data=0, ncol=numIdentities, nrow=148), tAdjMatP))
+  tAdjMatNI <- as.matrix(cbind(matrix(data=0, ncol=numIdentities, nrow=148), tAdjMatN))
   # 8 identities causing 148 traits for each valence
-  subMatP <- matrix(data = 0, nrow = 8, ncol = 148)
-  subMatN <- matrix(data = 0, nrow = 8, ncol = 148)
+  subMatP <- matrix(data = 0, nrow = numIdentities, ncol = 148)
+  subMatN <- matrix(data = 0, nrow = numIdentities, ncol = 148)
   identityMat <- get(paste0("subIMat.",i))
+  identityMatW <- get(paste0("subIMatW.",i))
   subMatP <- cbind(identityMat, subMatP)
   subMatN <- cbind(identityMat, subMatN)
   # for each identity
-  for(c in 1:length(idNames)){
+  for(c in 1:numIdentities ){
     # extract trait nominations for identity c
-    traitsCols <- grep(idNames[c],colnames(rawFirst[idSubs]))
+    #traitsCols <- grep(idNames[c],colnames(rawFirst[idSubs]))
+    traitsCols <- select(rawFirst[idSubs], contains(paste0("I",c,"_")))
     # first index is pos traits
-    posCols <- traitsCols[1]
+    posCols <- traitsCols[n,1]
     # second index is neg traits
-    negCols <- traitsCols[2]
-    # pos traits for identity
-    posCols <- idSubs[posCols]
-    # neg traits for identity
-    negCols <- idSubs[negCols]
+    negCols <- traitsCols[n,2]
     # split it
-    selectWordP <-strsplit(as.character(subDf[,posCols][[1]]),",")
-    # all traits need to be pushed up 8 because the matrix contains 8 identities first
-    selectWordP <-as.numeric(selectWordP[[1]]) + 8
+    selectWordP <- unlist(strsplit(as.character(posCols),","))
+    # all traits need to be pushed up by quantity of identities because the matrix contains identities first
+    selectWordP <-as.numeric(selectWordP) + numIdentities
     # populate with 1s for nominations
     subMatP[c , selectWordP] <- 1
     # do the same for negative
-    selectWordN <-strsplit(as.character(subDf[,negCols][[1]]),",") 
-    selectWordN <-as.numeric(selectWordN[[1]]) + 8
+    selectWordN <- unlist(strsplit(as.character(negCols),","))
+    selectWordN <-as.numeric(selectWordN) + numIdentities
     subMatN[c , selectWordN] <- 1
   }
-  # bind empty matrices so it's 156x156, with empty cells for traits causing identities
+  # bind empty matrices so it's with empty cells for traits causing identities
   subTPMat <- rbind(subMatP, tAdjMatPI)
   subTNMat <- rbind(subMatN, tAdjMatNI)
-  # assign identities as first 8 names and traits as the next 148 names
+  # assign identities as first identity names and traits as the next 148 names
   colnames(subTPMat) <- c(idNames, posTraits$trait)
   # convert to graph
   subTPGraph <- graph.adjacency(subTPMat)
@@ -209,14 +228,14 @@ for(i in uIds){
   # generate identities causing pos traits only (neglect identities to identities)
   subTonlyPMat <- subTPMat
   # empty first matrix of 8x8
-  subTonlyPMat[1:8,1:8] <- 0
+  subTonlyPMat[1:numIdentities,1:numIdentities] <- 0
   assign(paste0("subTonlyPMat.",i),subTonlyPMat)
   subTonlyPGraph <- graph.adjacency(subTonlyPMat)
   assign(paste0("subTonlyPGraph.",i),subTonlyPGraph)
   # generate identities causing pos traits only (neglect identities to identities and traits causing traits... only identities causing traits)
   subItoTonlyPMat <- subTPMat
-  subItoTonlyPMat[1:8,1:8] <- 0
-  subItoTonlyPMat[9:nrow(subItoTonlyPMat),1:ncol(subItoTonlyPMat)] <- 0
+  subItoTonlyPMat[1:numIdentities,1:numIdentities] <- 0
+  subItoTonlyPMat[(numIdentities+1):nrow(subItoTonlyPMat),1:ncol(subItoTonlyPMat)] <- 0
   assign(paste0("subItoTonlyPMat.",i),subItoTonlyPMat)
   subItoTonlyPGraph <- graph.adjacency(subItoTonlyPMat)
   assign(paste0("subItoTonlyPGraph.",i),subItoTonlyPGraph)
@@ -227,43 +246,50 @@ for(i in uIds){
   assign(paste0("subTNMat.",i),subTNMat)
   assign(paste0("subTNGraph.",i),subTNGraph)
   subTonlyNMat <- subTNMat
-  subTonlyNMat[1:8,1:8] <- 0
+  subTonlyNMat[1:numIdentities,1:numIdentities] <- 0
   assign(paste0("subTonlyNMat.",i),subTonlyNMat)
   subTonlyNGraph <- graph.adjacency(subTonlyNMat)
   assign(paste0("subTonlyNGraph.",i),subTonlyNGraph)
   subItoTonlyNMat <- subTNMat
-  subItoTonlyNMat[1:8,1:8] <- 0
-  subItoTonlyNMat[9:nrow(subItoTonlyNMat),1:ncol(subItoTonlyNMat)] <- 0
+  subItoTonlyNMat[1:numIdentities,1:numIdentities] <- 0
+  subItoTonlyNMat[(numIdentities+1):nrow(subItoTonlyNMat),1:ncol(subItoTonlyNMat)] <- 0
   assign(paste0("subItoTonlyNMat.",i),subItoTonlyNMat)
   subItoTonlyNGraph <- graph.adjacency(subItoTonlyNMat)
   assign(paste0("subItoTonlyNGraph.",i),subItoTonlyNGraph)
   
   # combine the two matrices (don't repeat identities matrix which is first 8x8)
-  subTFMat <- cbind(subMatP, subMatN[1:8, 9:156])
+  if(numIdentities>1){
+    subTFMat <- cbind(subMatP, subMatN[1:(numIdentities), (numIdentities+1):(numIdentities+148) ])
+  }else{
+    subTFMat <- c(subMatP, subMatN[1:(numIdentities), (numIdentities+1):(numIdentities+148) ])
+  }
+  
   # bind such that pos traits do not cause identities (148x8 of 0s), pos traits can cause pos traits, and pos traits cannot cause neg traits (148x148 of 0s)
-  subTFMat <- rbind(subTFMat, as.matrix(data.frame(matrix(data=0, nrow=148, ncol=8), tAdjMatP, matrix(data=0, nrow=148, ncol=148)) ))
+  subTFMat <- rbind(subTFMat, as.matrix(data.frame(matrix(data=0, nrow=148, ncol=numIdentities ), tAdjMatP, matrix(data=0, nrow=148, ncol=148)) ))
   # bind such that neg traits do not cause identities (148x8 of 0s), neg traits cannot cause pos traits (148x148 of 0s), and neg traits can cause neg traits
-  subTFMat <- rbind(subTFMat, as.matrix(data.frame(matrix(data=0, nrow=148, ncol=8), matrix(data=0, nrow=148, ncol=148), tAdjMatN) ))
+  subTFMat <- rbind(subTFMat, as.matrix(data.frame(matrix(data=0, nrow=148, ncol=numIdentities ), matrix(data=0, nrow=148, ncol=148), tAdjMatN) ))
   colnames(subTFMat) <- c(idNames, posTraits$trait, negTraits$trait)
   subTFGraph <- graph.adjacency(subTFMat)
   assign(paste0("subTFMat.",i),subTFMat)
   assign(paste0("subTFGraph.",i),subTFGraph)
   # create identities to traits only matrix (neglecting identity-identity connections)
   subTonlyFMat <- subTFMat
-  subTonlyFMat[1:8,1:8] <- 0
+  subTonlyFMat[1:numIdentities,1:numIdentities] <- 0
   assign(paste0("subTonlyFMat.",i),subTonlyFMat)
   subTonlyFGraph <- graph.adjacency(subTonlyFMat)
   assign(paste0("subTonlyFGraph.",i),subTonlyFGraph)
   # create identities to traits only matrix (neglecting identity-identity and trait causing trait connections)
   subItoTonlyFMat <- subTFMat
-  subItoTonlyFMat[1:8,1:8] <- 0
-  subItoTonlyFMat[9:nrow(subItoTonlyFMat),1:ncol(subItoTonlyFMat)] <- 0
+  subItoTonlyFMat[1:numIdentities,1:numIdentities] <- 0
+  subItoTonlyFMat[(numIdentities+1):nrow(subItoTonlyFMat),1:ncol(subItoTonlyFMat)] <- 0
   assign(paste0("subItoTonlyFMat.",i),subItoTonlyFMat)
   subItoTonlyFGraph <- graph.adjacency(subItoTonlyFMat)
   assign(paste0("subItoTonlyFGraph.",i),subItoTonlyFGraph)
   
 }
 ```
+
+# Stopped here on 7-15-2022
 
 ```{r warning=FALSE}
 idDf <- data.frame()
