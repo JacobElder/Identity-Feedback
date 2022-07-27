@@ -22,6 +22,9 @@ rawFirst<-rename(rawFirst, "I8_Sims_" = contains("I9_Sims")) # temporary fix
 
 rawSec <- read.csv("~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Input/idFeedRaw2.csv", header = T)
 rawSec <- rawSec[!as.numeric(duplicated(rawSec$id)),]
+
+rawSec <- rename(rawSec, A_I8 = A_l8)
+
 tAdjMatP <- read.csv("~/Google Drive/Volumes/Research Project/Trait Network_Behaviral/generating network/output/adjacencyMatrix_p.csv")
 
 tAdjMatN <- read.csv("~/Google Drive/Volumes/Research Project/Trait Network_Behaviral/generating network/output/adjacencyMatrix_n.csv")
@@ -119,6 +122,9 @@ for(n in 1:nrow(rawFirst) ){
   
     
 }
+
+idMat <- as_tibble(idMat)
+colnames(idMat) <- c("subID",paste0("I",1:8))
 ```
 
 # Generate identity networks
@@ -131,8 +137,8 @@ idSubs <- rawFirst %>%
 for(n in 1:nrow(rawFirst)){
   i <- rawFirst$id[n]
   
-  idNames <- idMat[n,2:9] %>% na.omit()
-  numIdentities <- sum(!is.na(idMat[n,2:9]))
+  idNames <- idMat[idMat$subID==i,2:9] %>% as_vector() %>% na.omit()
+  numIdentities <- sum(!is.na(idMat[idMat$subID==i,2:9]))
   
   # subset subject row
   subDf <- rawFirst[rawFirst$id==i,]
@@ -149,7 +155,7 @@ for(n in 1:nrow(rawFirst)){
     # populate 1s for select identities in row
     subMat[c,as.numeric(unlist(selectWord))] <- 1 # Unweighted matrix
     diag(subMat) <- 0 # Set diagonal to 0s if participants nominated any self-connections
-    subMatW[c,as.numeric(unlist(selectWord))]  <- (11 / 11) as.numeric ( rawFirst[n,paste0("I",c,"_Sims_",as.numeric(unlist(selectWord) ))]/11 ) # Weighted matrix
+    subMatW[c,as.numeric(unlist(selectWord))]  <- (11 / 11) - as.numeric ( rawFirst[n,paste0("I",c,"_Sims_",as.numeric(unlist(selectWord) ))]/11 ) # Weighted matrix
     # Flipped direction of fraction so more overlap is closer between identities
     
     diag(subMatW) <- 0 # Set diagonal to 0s if participants nominated any self-connections
@@ -182,8 +188,8 @@ for(n in 1:nrow(rawFirst)){
   # subset subject
   subDf <- rawFirst[rawFirst$id==i,]
   
-  idNames <- idMat[n,2:9] %>% na.omit()
-  numIdentities <- sum(!is.na(idMat[n,2:9]))
+  idNames <- idMat[idMat$subID==i,2:9] %>% as_vector() %>% na.omit()
+  numIdentities <- sum(!is.na(idMat[idMat$subID==i,2:9]))
   
   # create empty matrices 148 traits causing 8 identities because traits don't cause identities
   tAdjMatPI <- as.matrix(cbind(matrix(data=0, ncol=numIdentities, nrow=148), tAdjMatP))
@@ -292,23 +298,21 @@ for(n in 1:nrow(rawFirst)){
 # Stopped here on 7-15-2022
 
 ```{r warning=FALSE}
-idDf <- data.frame()
-x <- c("subID", "id", "I2Ioutdeg", "I2Iindeg", "I2Ideg", "cI2Tdeg", "cI2Adeg",
-      "pI2Tdeg", "pI2Adeg", "nI2Tdeg", "nI2Adeg", "I2Itrans", "I2Ibet", "I2Iclose", "I2Ieigen", "cI2T.Trans",
-      "cI2T.Bet", "cI2T.Clos", "cI2A.Trans", "cI2A.Bet", "cI2A.Clos", "pI2T.Trans", "pI2T.Bet", "pI2T.Clos", "pI2A.Trans", "pI2A.Bet", 
-      "pI2A.Clos", "nI2T.Trans", "nI2T.Bet", "nI2T.Clos", "nI2A.Trans", "nI2A.Bet", "nI2A.Clos", "idCommNod", "traitCommNod",
-      "cI2A.Hub", "cI2T.Hub", "pI2A.Hub", "pI2T.Hub", "nI2A.Hub", "nI2T.Hub")
-idToTraitDf <- data.frame()
-x2 <- c("subID", "traits", "IdIn")
-globalIDDf <- data.frame()
-x3 <- c("subID","idEdgT", "density", "idAveDist", "idTrans", "idSW", "idStrengHom","idPosHom", "idStigHom", "idSizSHom", "idSizUHom", "idSizeDHom", "idInclusHom", "idDifferHom", "idInBHom", "idOutBHom", "idInterBHom", "traitCommGlob", "globEff")
 
-for(i in uIds){
-  #for(j in 1:length(idNames)){
-    subDf <- rawFirst[rawFirst$id==i,]
+for(n in 1:nrow(rawSec)){
+  # n is 19 for 57517
+  i <- rawSec$id[n]
+
+  idNames <- idMat[idMat$subID==i,2:9] %>% as_vector() %>% na.omit()
+  numIdentities <- sum(!is.na(idMat[idMat$subID==i,2:9]))
     
     # identity to identity causing
     curGraph <- get(paste0("subIGraph.",i))
+    # identity to identity causing
+    curGraphW <- get(paste0("subIGraphW.",i))
+    
+    if(numIdentities>1){
+    
     I2Ioutdeg <- degree(curGraph, mode="out")
     # identity to identity, receiving
     I2Iindeg <- degree(curGraph, mode="in")
@@ -332,49 +336,73 @@ for(i in uIds){
     # clustering coefficient
     idTrans <- transitivity(curGraph, "global")
     # small worldness
-    #idSW <- qgraph::smallworldIndex(curGraph)$index
-    idSW <- qgraph::smallworldness(curGraph)[1]
     # global efficiency
     globEff <- brainGraph::efficiency(curGraph, type = "global")
     
     # assortativity of identification
-    V(curGraph)$ident <- rawSec[rawSec$id==i, paste0("I_",c("Race","Gender","Sex","Relig","SES","Occup","Hob","Pol"))]
+    V(curGraph)$ident <- rawSec[rawSec$id==i, paste0("I_I",1:numIdentities)]
     idStrengHom <- assortativityNA(curGraph, as.numeric(V(curGraph)$ident)+rnorm(1, 0, .00001), directed=F)
     # of positivity
-    V(curGraph)$pos <- rawSec[rawSec$id==i, paste0("P_",c("Race","Gender","Sex","Relig","SES","Occup","Hob","Pol"))]
+    V(curGraph)$pos <- rawSec[rawSec$id==i, paste0("P_I",1:numIdentities)]
     idPosHom <- assortativityNA(curGraph, as.numeric(V(curGraph)$pos)+rnorm(1, 0, .00001), directed=F)
     # of stigma
-    V(curGraph)$Stig <- rawSec[rawSec$id==i, paste0("St_",c("Race","Gender","Sex","Relig","SES","Occup","Hob","Pol"))]
+    V(curGraph)$Stig <- rawSec[rawSec$id==i, paste0("St_I",1:numIdentities)]
     idStigHom <- assortativityNA(curGraph, as.numeric(V(curGraph)$Stig)+rnorm(1, 0, .00001), directed=F)
     # of size to school
-    V(curGraph)$SzS <- rawSec[rawSec$id==i, paste0("Sz_",c("Race","Gender","Sex","Relig","SES","Occup","Hob","Pol"),"_1")]
+    V(curGraph)$SzS <- rawSec[rawSec$id==i, paste0("Sz_I",1:numIdentities,"_1")]
     idSzSHom <- assortativityNA(curGraph, as.numeric(V(curGraph)$SzS)+rnorm(1, 0, .00001), directed=F)
     # of size to U.S.
-    V(curGraph)$SzU <- rawSec[rawSec$id==i, paste0("Sz_",c("Race","Gender","Sex","Relig","SES","Occup","Hob","Pol"),"_13")]
+    V(curGraph)$SzU <- rawSec[rawSec$id==i, paste0("Sz_I",1:numIdentities,"_13")]
     idSzUHom <- assortativityNA(curGraph, as.numeric(V(curGraph)$SzU)+rnorm(1, 0, .00001), directed=F)
     # of size difference
     V(curGraph)$SzD <- as.numeric(V(curGraph)$SzS) - as.numeric(V(curGraph)$SzU)
     idSzDHom <- assortativityNA(curGraph, as.numeric(V(curGraph)$SzD)+rnorm(1, 0, .00001), directed=F)
     # of inclusion
-    V(curGraph)$inclus <- rawSec[rawSec$id==i, paste0("A_",c("Race","Gender","Sex","Relig","SES","Occup","Hob","Pol"))]
+    V(curGraph)$inclus <- rawSec[rawSec$id==i, paste0("A_I",1:numIdentities)]
     idInclusHom <- assortativityNA(curGraph, as.numeric(V(curGraph)$inclus)+rnorm(1, 0, .00001), directed=F)
     # of differentiation
-    V(curGraph)$differ <- rawSec[rawSec$id==i, paste0("D_",c("Race","Gender","Sex","Relig","SES","Occup","Hob","Pol"))]
+    V(curGraph)$differ <- rawSec[rawSec$id==i, paste0("D_I",1:numIdentities)]
     idDifferHom <- assortativityNA(curGraph, as.numeric(V(curGraph)$differ)+rnorm(1, 0, .00001), directed=F)
-    # of ingroup bias
-    V(curGraph)$inb <- rawSec[rawSec$id==i, paste0("Therm_",c("Race","Gender","Sex","Relig","SES","Occup","Hob","Pol"),"_1")]
-    idInbHom <- assortativityNA(curGraph, as.numeric(V(curGraph)$inb)+rnorm(1, 0, .00001), directed=F)
-    # of outgroup bias
-    V(curGraph)$outb <- rawSec[rawSec$id==i, paste0("Therm_",c("Race","Gender","Sex","Relig","SES","Occup","Hob","Pol"),"_2")]
-    idOutbHom <- assortativityNA(curGraph, as.numeric(V(curGraph)$outb)+rnorm(1, 0, .00001), directed=F)
-    # of intergroup difference
-    V(curGraph)$interb <- as.numeric(V(curGraph)$inb) - as.numeric(V(curGraph)$outb)
-    idInterbHom <- assortativityNA(curGraph, as.numeric(V(curGraph)$interb)+rnorm(1, 0, .00001), directed=F)
     
     # global similarity of identity network
-    idCommGlob <- mean(similarity(curGraph, method = "dice")[1:8,1:8])
+    idCommGlob <- (similarity(curGraph, method = "dice"))%>% .[lower.tri(.)] %>% mean()
+    # each node's distance from race
+    idCommRaceN <-similarity(curGraph, method = "dice")[1,]
     # identity-node similarity
-    idCommNod <- rowMeans(similarity(curGraph, method = "dice")[1:8,1:8])
+    idCommNod <- rowMeans(similarity(curGraph, method = "dice")[1:numIdentities,1:numIdentities])
+    # mean similarity from race (as feedback targeted at race)
+    idCommRaceM <- mean(similarity(curGraph, method = "dice")[1,],na.rm=T)
+    
+    distanceMat <- distances(curGraph)
+    distanceMat[is.infinite(distanceMat)] <- NA
+    # nodal distance of identity network
+    idDistNod <- rowMeans(distanceMat, na.rm=T)
+    # each node's distance from race (as feedback targeted at race)
+    idDistRaceN <- distanceMat[1,]
+    # global distance of identity network
+    idDistGlob <- distanceMat %>% .[lower.tri(.)] %>% mean(na.rm=T)
+    # mean distance from race (as feedback targeted at race)
+    idDistRaceM <- mean(distanceMat[1,],na.rm=T)
+    
+    distanceMat <- distances(curGraphW)
+    distanceMat[is.infinite(distanceMat)] <- NA
+    # nodal distance of identity network (weighted)
+    idDistNodW <- rowMeans(distanceMat, na.rm=T)
+    # mean distance from race (as feedback targeted at race)
+    idDistRaceNW <- distanceMat[1,]
+    # global distance of identity network (weighted)
+    idDistGlobW <- distanceMat %>% .[lower.tri(.)] %>% mean(na.rm=T)
+    # mean distance from race (as feedback targeted at race)
+    idDistRaceMW <- mean(distanceMat[1,],na.rm=T)
+    }
+    # }else{
+    #   idDistGlob=NA
+    #   idDistRaceM=NA
+    #   idDistNodW=NA
+    #   idDistRaceNW=NA
+    #   idDistGlobW=NA
+    #   idDistRaceMW=NA
+    # }
     
     # identity to traits, valence combined
     # use identity to traits only network
@@ -403,9 +431,31 @@ for(i in uIds){
     cI2A.Hub <- hub_score(curGraph, scale = TRUE)$vector
     
     # global similarity of identity network (traits they have in common)
-    traitCommGlob <- mean(similarity(curGraph, method = "dice")[1:8,1:8])
-    # identity-node similarity
-    traitCommNod <- rowMeans(similarity(curGraph, method = "dice")[1:8,1:8])
+    traitCommGlob <- (similarity(curGraph, method = "dice"))%>% .[lower.tri(.)] %>% mean()
+    if(numIdentities>1){
+      # identity-node similarity
+      traitCommNod <- rowMeans(similarity(curGraph, method = "dice")[1:numIdentities,1:numIdentities])
+    }else{
+      traitCommNod <- mean(similarity(curGraph, method = "dice")[1:numIdentities,1:numIdentities])
+    }
+    # mean similarity from race (as feedback targeted at race)
+    traitCommRace <- mean(similarity(curGraph, method = "dice")[1,],na.rm=T)
+    
+    distanceMat <- distances(curGraph)
+    distanceMat[is.infinite(distanceMat)] <- NA
+    if(numIdentities>1){
+      # nodal distance of traitentity network
+      traitDistNod <- rowMeans(distanceMat[1:numIdentities,1:numIdentities],na.rm=T)
+    }else{
+      traitDistNod <- mean(distanceMat, na.rm=T)
+    }
+    
+    # global distance of traitentity network
+    traitDistGlob <- distanceMat %>% .[lower.tri(.)] %>% mean(na.rm=T)
+    # mean distance from race (as feedback targeted at race)
+    traitDistRaceP <- mean(distanceMat[1,(numIdentities+1):(numIdentities+148)],na.rm=T)
+    # mean distance from race (as feedback targeted at race)
+    traitDistRaceN <- mean(distanceMat[1,(numIdentities+1+148):(numIdentities+148+148)],na.rm=T)
     
     # identity to traits, positive
     # use identity to traits only network
@@ -463,48 +513,106 @@ for(i in uIds){
     curGraph <- get(paste0("subItoTonlyFGraph.",i))
     IdIn <- degree(curGraph, mode="in")
 
-    idDf <- rbind(idDf, data.frame(rep(i,8), idNames, I2Ioutdeg[1:8], I2Iindeg[1:8], I2Ideg[1:8], cI2Tdeg[1:8], cI2Adeg[1:8],
-                                    pI2Tdeg[1:8], pI2Adeg[1:8], nI2Tdeg[1:8], nI2Adeg[1:8], I2Itrans[1:8], I2Ibet[1:8], I2Iclose[1:8],
-                                   I2Ieigen[1:8], cI2T.Trans[1:8], cI2T.Bet[1:8], cI2T.Clos[1:8], cI2A.Trans[1:8], cI2A.Bet[1:8],
-                                   cI2A.Clos[1:8], pI2T.Trans[1:8], pI2T.Bet[1:8], pI2T.Clos[1:8], pI2A.Trans[1:8], pI2A.Bet[1:8],
-                                   pI2A.Clos[1:8], nI2T.Trans[1:8], nI2T.Bet[1:8], nI2T.Clos[1:8], nI2A.Trans[1:8], nI2A.Bet[1:8],
-                                   nI2A.Clos[1:8], idCommNod, traitCommNod, cI2A.Hub[1:8], cI2T.Hub[1:8], pI2A.Hub[1:8],
-                                   pI2T.Hub[1:8], nI2A.Hub[1:8], nI2T.Hub[1:8]))
+    if(numIdentities>1){
+  
+    x1 <- cbind(subID=rep(i,numIdentities), id=idNames, idcode = 1:numIdentities, I2Ioutdeg = I2Ioutdeg[1:numIdentities], I2Iindeg = I2Iindeg[1:numIdentities], I2Ideg = I2Ideg[1:numIdentities],
+                cI2Tdeg=cI2Tdeg[1:numIdentities], cI2Adeg=cI2Adeg[1:numIdentities],
+                                    pI2Tdeg=pI2Tdeg[1:numIdentities], pI2Adeg=pI2Adeg[1:numIdentities], nI2Tdeg=nI2Tdeg[1:numIdentities],
+                nI2Adeg=nI2Adeg[1:numIdentities], I2Itrans=I2Itrans[1:numIdentities], I2Ibet=I2Ibet[1:numIdentities], I2Iclose=I2Iclose[1:numIdentities],
+                                   I2Ieigen=I2Ieigen[1:numIdentities], cI2T.Trans=cI2T.Trans[1:numIdentities], cI2T.Bet=cI2T.Bet[1:numIdentities],
+                cI2T.Clos=cI2T.Clos[1:numIdentities], cI2A.Trans=cI2A.Trans[1:numIdentities], cI2A.Bet=cI2A.Bet[1:numIdentities],
+                                   cI2A.Clos=cI2A.Clos[1:numIdentities], pI2T.Trans=pI2T.Trans[1:numIdentities], pI2T.Bet=pI2T.Bet[1:numIdentities],
+                pI2T.Clos=pI2T.Clos[1:numIdentities], pI2A.Trans=pI2A.Trans[1:numIdentities], pI2A.Bet=pI2A.Bet[1:numIdentities],
+                                   pI2A.Clos=pI2A.Clos[1:numIdentities], nI2T.Trans=nI2T.Trans[1:numIdentities], nI2T.Bet=nI2T.Bet[1:numIdentities],
+                nI2T.Clos=nI2T.Clos[1:numIdentities], nI2A.Trans=nI2A.Trans[1:numIdentities], nI2A.Bet=nI2A.Bet[1:numIdentities],
+                                   nI2A.Clos=nI2A.Clos[1:numIdentities], idCommNod, traitCommNod, idCommRaceN, idDistNod,
+                idDistRaceN, idDistNodW, idDistRaceNW,
+                cI2A.Hub=cI2A.Hub[1:numIdentities],
+                cI2T.Hub=cI2T.Hub[1:numIdentities], pI2A.Hub=pI2A.Hub[1:numIdentities],
+                                   pI2T.Hub=pI2T.Hub[1:numIdentities], nI2A.Hub=nI2A.Hub[1:numIdentities], nI2T.Hub=nI2T.Hub[1:numIdentities])
     
-    idToTraitDf <- rbind(idToTraitDf, data.frame(subID = rep(i,296), traits = c(posTraits$trait, negTraits$trait), IdIn[9:304] ))
+    }else{
+      x1 <- cbind(subID=rep(i,numIdentities), id=idNames, idcode = 1:numIdentities)
+      x1 <- c(x1,
+                  rep(NA,(ncol(idDf)-3) ) )
+      names(x1)<-colnames(idDf)
+    }
     
-    globalIDDf <- rbind(globalIDDf, data.frame(subID = i, idEdgT = idEdgT, idDensity = density, idTrans = idTrans, idSW = idSW, idStrengHom = idStrengHom, idPosHom = idPosHom, idStigHom = idStigHom, idSizeSHom = idSzSHom, idSizeUHom = idSzUHom, idSizeDHom = idSzDHom, idInclusHom = idInclusHom, idDifferHom = idDifferHom, idInbHom = idInbHom, idOutbHom = idOutbHom, idInterbHom = idInterbHom, traitCommGlob = traitCommGlob,idCommGlob=idCommGlob,globEff = globEff))
+  if(n==1){
+    idDf <- matrix(nrow=0,ncol=ncol(x1))
+    idDf <- rbind(idDf, x1)
+  }else{
+    idDf <- rbind(idDf, x1)
+  }
+  
+     x2 <- cbind(subID = rep(i,296), traits = c(posTraits$trait, negTraits$trait), idNum = numIdentities, IdIn=IdIn[(numIdentities+1):(numIdentities+296)] )
     
-  #}
+  if(n==1){
+    idToTraitDf <- matrix(nrow=0,ncol=ncol(x2))
+    idToTraitDf <- rbind(idToTraitDf, x2)
+  }else{
+    idToTraitDf <- rbind(idToTraitDf, x2)
+  }
+     
+  x3 <- cbind(subID = i, idNum = numIdentities, idEdgT = idEdgT, idDensity = density, idTrans = idTrans, idStrengHom = idStrengHom, idPosHom = idPosHom, idStigHom = idStigHom, idSizeSHom = idSzSHom, idSizeUHom = idSzUHom, idSizeDHom = idSzDHom, idInclusHom = idInclusHom, idDifferHom = idDifferHom, traitCommGlob = traitCommGlob,idCommGlob=idCommGlob,
+              idCommRaceM=idCommRaceM, idDistGlob=idDistGlob, idDistRaceM=idDistRaceM, idDistGlobW=idDistGlobW, idDistRaceMW=idDistRaceMW, traitDistRaceP=traitDistRaceP, traitDistRaceN=traitDistRaceN,
+              globEff = globEff)
+      
+  if(n==1){
+    globalIDDf <- matrix(nrow=0,ncol=ncol(x3))
+    globalIDDf <- rbind(globalIDDf, x3)
+  }else{
+    globalIDDf <- rbind(globalIDDf, x3)
+  }
 }
-colnames(idDf) <- x
-colnames(idToTraitDf) <- x2
+idDf <- as.data.frame(idDf)
+idToTraitDf <- as.data.frame(idToTraitDf)
+globalIDDf <- as.data.frame(globalIDDf)
+
+idDf[,3:ncol(idDf)]<-apply(idDf[,3:ncol(idDf)], 2, as.numeric)
+idToTraitDf[,3:ncol(idToTraitDf)]<-apply(idToTraitDf[,3:ncol(idToTraitDf)], 2, as.numeric)
+globalIDDf[,2:ncol(globalIDDf)]<-apply(globalIDDf[,2:ncol(globalIDDf)], 2, as.numeric)
 ```
 
 ```{r}
 # get list of all adjacency matrices
 adjList<-lapply(uIds, function(x) get(paste0("subItoTonlyFMat.",x)))
+numId <- lapply(adjList, function(x) which(colnames(x)=="Accurate")-1)
 
 # subject tendency to nominate traits across all identities
-adjListI<-lapply(adjList,'[',1:8,)
-sumNomsAcrossIdentities <- lapply(adjListI, function(x) mean(rowSums(x)) )
+adjListI<-lapply(1:length(adjList),function(x) adjList[[x]][1:numId[[x]],])
 
-# trait tendency to be nominated across all 
-# adjListT<-lapply(adjList, function(x) x[1:8,9:304])
-# sumNomsAcrossTraits <- lapply(adjListT, function(x) colSums(x))
-adjListT<-lapply(adjList, function(x) x[1:8,9:304])
-sumsAcrossTraits <- lapply(adjListT, function(x) (colSums(x)))
-sumNomsAcrossTraits <- colMeans(do.call(rbind, sumsAcrossTraits))
+sumNomsAcrossIdentities<-vector(length=length(adjListI))
+for(n in 1:length(adjListI)){
+  if(numId[n]==1){
+    sumNomsAcrossIdentities[n] <- sum(adjListI[[n]])
+  }else{
+    sumNomsAcrossIdentities[n] <- mean(rowSums(adjListI[[n]]))
+  }
+}
+
+#sumNomsAcrossIdentities <- lapply(adjListI, function(x) ifelse(class(x)=="numeric", sum(x), mean(rowSums(x)) )  )
+
+#adjListT<-lapply(adjList, function(x) x[1:numIdentities,(numIdentities+1) : (numIdentities+296)])
+#sumsAcrossTraits <- lapply(adjListT, function(x) (colSums(x)))
+#sumNomsAcrossTraits <- colMeans(do.call(rbind, sumsAcrossTraits))
+
+sumNomsAcrossTraits <- matrix(nrow=296,ncol=length(uIds))
+for(n in 1:length(uIds)){
+  numId<-(which(colnames(adjList[[n]])=="Accurate")-1)
+  sumNomsAcrossTraits[,n] <- colSums(adjList[[n]][,(numId+1):(numId+296)])
+}
+sumNomsAcrossTraits<-rowMeans(sumNomsAcrossTraits)
 
 tendSubdDf <- as.data.frame(
   cbind(subID = uIds, 
-        subTend = unlist(sumNomsAcrossIdentities)
+        subTend = sumNomsAcrossIdentities
 )
 )
 
 tendTraitDf <- as.data.frame(
-  cbind(traits = names(sumNomsAcrossTraits), 
-        traitTend = unlist(sumNomsAcrossTraits)
+  cbind(traits = c(posTraits$trait, negTraits$trait), 
+        traitTend = sumNomsAcrossTraits
 )
 )
 ```
@@ -530,16 +638,16 @@ for(i in uIds){
 # dataframe of identity ratings
 
 ```{r}
-idSubs <- grep("I_Race",colnames(rawSec)):grep("Therm_Pol_2",colnames(rawSec),)
+idSubs <- grep("I_I1",colnames(rawSec)):grep("D_I8",colnames(rawSec),)
 idValue <- rawSec[idSubs]
 idValue$id <- rawSec$id
 
 longId <- data.frame()
-wideId <- data.frame(matrix(nrow=nrow(rawSec)))
+wideId <- data.frame(matrix(ncol=0,nrow=nrow(rawSec)))
 
 #rename(rawSec, ends_with("_1"))
 
-labels <- c("I_","P_","St_","Sz_","Sz_","A_","D_","Therm_","Therm_")
+labels <- c("I_","P_","St_","Sz_","Sz_","A_","D_")
 
 for(k in 1:length(labels)){
   
@@ -547,39 +655,35 @@ for(k in 1:length(labels)){
     kc="I_"
     kn="streng"
     sf=""
+    ke=""
   }else if(k==2){
     kc="P_"
     kn="pos"
     sf=""
+    ke=""
   }else if(k==3){
     kc="St_"
     kn="stig"
     sf=""
+    ke=""
   }else if(k==4){
     kc="Sz_"
     kn="sizeS"
-    #sf="_1"
+    ke="_1"
     sf=seq(from=1,to=15,by=2)
   }else if(k==5){
     kc="Sz_"
     kn="sizeU"
     sf=seq(from=2,to=16,by=2)
+    ke="13"
   }else if(k==6){
     kc="A_"
     kn="inclus"
-    sf=""
+    ke=""
   }else if(k==7){
     kc="D_"
     kn="differ"
-    sf=""
-  }else if(k==8){
-    kc="Therm_"
-    kn="inG"
-    sf=seq(from=1,to=15,by=2)
-  }else if(k==9){
-    kc="Therm_"
-    kn="outG"
-    sf=seq(from=2,to=16,by=2)
+    ke=""
   }
   
   kcols <- grep(paste0("^",kc),colnames(rawSec))
@@ -589,30 +693,52 @@ for(k in 1:length(labels)){
   # if(sf!=""){
   #   grep(kco
   # }
-  df<-pivot_longer(idValue[c(kcols,grep("id",colnames(idValue)))], cols=starts_with(kc), names_to = c("id"), values_to = kn, names_repair = "unique", names_prefix = kc)
+  if(k==4 | k==5){
+    df<-idValue %>% 
+    select(intersect(starts_with(kc) , ends_with(ke)), id) %>%
+    pivot_longer(cols=c(starts_with(kc)), names_to = c("idcode"), values_to = kn, names_repair = "unique", names_prefix = kc)
+  }else{
+    df<-idValue %>% 
+    select(starts_with(kc), id) %>%
+    pivot_longer(cols=c(starts_with(kc)), names_to = c("idcode"), values_to = kn, names_repair = "unique", names_prefix = kc)
+  }
+
   
   
   
-  colnames(df)[1:2] <- c("subID","id")
+  colnames(df)[1:2] <- c("subID","idcode")
   
-  if(any(k==c(4,5,8,9))){
-    df$id <- sub("_[^_]+$", "", df$id)
+  if(any(k==c(4,5))){
+    df$idcode <- sub("_[^_]+$", "", df$idcode)
   }
   
   assign(paste0(kc,"long"),df)
   
   
-  if(k>1){
-    wideId<-cbind(wideId,idValue[c(kcols)])
+  if(k==4 | k==5){
+    wideId<-cbind(wideId,select(idValue, intersect(starts_with(kc) , ends_with(ke) ))) 
+  }else if(k==1){
+    wideId<-cbind(wideId, select(idValue, id, starts_with(kc)))
   }else{
-    wideId<-cbind(wideId,idValue[c(kcols,grep("id",colnames(idValue)))])
+    wideId<-cbind(wideId, select(idValue, starts_with(kc)))
   }
   
   if(k==2){
-    idLong<-merge(I_long, P_long, by = c("subID","id"))
+    idLong<-merge(I_long, P_long, by = c("subID","idcode"))
   }else if(k>2){
-    idLong <- merge(idLong, df, by = c("subID","id"))
+    idLong <- merge(idLong, df, by = c("subID","idcode"))
   }
+  
+  if(k>2){
+    summarized <- Rmisc::summarySE(data=idLong, measurevar = "streng", groupvars = c("subID","idcode"))
+    if(any(summarized$N>1)){
+      break
+    }
+  }
+  
+  
+  # print(dim(df))
+  # print(dim(idLong))
   
 }
 
@@ -621,26 +747,18 @@ for(k in 1:length(labels)){
 # idLong <- merge(idLong, U_long, by = c("subID","id"))
 # idLong <- merge(idLong, I_long, by = c("subID","id"))
 
-# fix character string incosistencies
-idLong$id<-gsub("Gender","Gen",idLong$id)
-idLong$id<-gsub("Relig","Rel",idLong$id)
-
-idLong$interG <- idLong$inG-idLong$outG
 idLong$sizeD <- idLong$sizeS - idLong$sizeU
 idLong$OD <- idLong$inclus - idLong$differ
 
+idLong$idcode <- gsub("I","",idLong$idcode)
+
 # merge with first half identity centrality measures
-idLong <- merge(idLong, idDf, by = c("subID","id"))
+idLong <- merge(idLong, idDf, by = c("subID","idcode"))
 
-wideId <-wideId[-1]
-wideId <- wideId %>% rename(subID = id) %>% relocate(subID, .before=I_Race)
-# wideId <- wideId[c( grep("subID", colnames(wideId)) , 1 : (grep("subID", colnames(wideId))-1) , (grep("subID", colnames(wideId))+1) : ncol(wideId) )]
-#test<-pivot_wider(qcidlong, id_cols = id)
-#wideId <- merge(wideId, qcidlong, by = "subID")
-
-
-#wideId<- merge(wideId, qidlong, by = "id")
+wideId <-wideId
+wideId <- wideId %>% rename(subID = id) %>% relocate(subID, .before=I_I1)
 ```
+
 
 ```{r}
 traitLong<-pivot_longer(rawSec, cols=Accurate:Worrier, names_to = c("traits"), values_to = "selfResp", names_repair = "unique")
@@ -653,172 +771,282 @@ traitLong$traits <- gsub("\\.","-", traitLong$traits)
 
 ```{r}
 fullLong <- merge(traitLong, traitIdDf1st, by = c("subID","traits"))
-fullLong[order(fullLong$subID, fullLong$id),]
+fullLong<-fullLong[order(fullLong$subID, fullLong$id),]
 fullLong <- merge(fullLong, idLong, by = c("subID","id"))
 ```
 
 # Categorical and Qualitative Identity Kavels
 
 ```{r}
-# Qualitative identity labels
-indcols <- grep(paste0("Q_"),colnames(rawFirst))
-qidlong <- pivot_longer(rawFirst[c(indcols,grep("id",colnames(rawFirst)))], cols=starts_with("Q_"), names_to = c("id"), values_to = "idq", names_repair = "unique", names_prefix = "Q_")
-colnames(qidlong) <- c("subID","id","idQ")
-qidlong$id <- gsub("_4","",qidlong$id)
-qidlong$id <- gsub("Hobby", "Hob", qidlong$id)
-qidlong$id <- gsub("Relig", "Rel", qidlong$id)
-qidlong$id <- gsub("Gender", "Gen", qidlong$id)
+category <- function(fact){
+  recode_factor(fact, "1" = "race", 
+                                "2" = "gender",
+                                "3" = "sex",
+                                "4" = "pol",
+                                "5" = "ses",
+                                "6" = "rel",
+                                "7" = "occ",
+                                "8" = "hobb",
+                                "9" = "fam",
+                                "10" = "friend",
+                                "11" = "other")
+}
+category(rawFirst$I2_Cat)
 
-# categorical identity labels
-#indcols <- grep(paste0("^C_"),colnames(rawFirst)) #& !grepl("_TEXT", colnames(rawFirst))
+rawFirst <- rawFirst %>%
+  mutate(I1_Cat = category(as_factor(I1_Cat)),
+                         I2_Cat = category(as_factor(I2_Cat)),
+                         I3_Cat = category(as_factor(I3_Cat)),
+                         I4_Cat = category(as_factor(I4_Cat)),
+                         I5_Cat = category(as_factor(I5_Cat)),
+                         I6_Cat = category(as_factor(I6_Cat)),
+                         I7_Cat = category(as_factor(I7_Cat)),
+                         I8_Cat = category(as_factor(I8_Cat))
+                                          )
 
-# extract only C_Anyword ignore _TEXT
-indcols <- grep('^(?!.*_TEXT).*C_',colnames(rawFirst), perl = T)
-cidlong <- pivot_longer(rawFirst[c(indcols,grep("id",colnames(rawFirst)))], cols=starts_with("C_"), names_to = c("id"), values_to = "idC", names_repair = "unique", names_prefix = "C_")
-colnames(cidlong) <- c("subID","id","idC")
-cidlong$id <- gsub("_4","",cidlong$id)
-cidlong$id <- gsub("Hobby", "Hob", cidlong$id)
-cidlong$id <- gsub("Relig", "Rel", cidlong$id)
-cidlong$id <- gsub("Gender", "Gen",cidlong$id)
+idcdf <- rawFirst %>% select(id, ends_with("_Cat")) %>% pivot_longer(!id, names_to="idcode",values_to="idc")
+idcdf <- rename(idcdf, subID = id)
+idcdf$idcode <-  str_replace(idcdf$idcode, "_Cat","")
+idcdf$idcode <-  str_replace(idcdf$idcode, "I","")
+idcdf <- idcdf[!is.na(idcdf$idc),]
+
+idqdf <- idMat %>% pivot_longer(!subID, names_to="idcode",values_to="idq")
+idqdf$idcode <-  str_replace(idqdf$idcode, "I","")
+idqdf <- idqdf[!is.na(idqdf$idq),]
 
 # merge
-qcidlong <- merge(cidlong, qidlong, by = c("subID","id"))
+qcidlong <- merge(idcdf, idqdf, by = c("subID","idcode"))
 ```
 
 
 ```{r}
-rf <- read.csv("~/Google Drive/Volumes/Research Project/Identities to Traits/Study 2/Cleaning/Input/rawFirst.csv", header = T)
-rf <- rf[!as.numeric(duplicated(rf$id)),]
-
-idLabels <- read.csv("~/Google Drive/Volumes/Research Project/Identities to Traits/Study 2/Cleaning/Input/rawFirstQ.csv", header = T)
-idLabels <- idLabels[!as.numeric(duplicated(idLabels$id)),]
-
-rf <- merge(rf, idLabels[c("id","C_RaceF","C_GenderF","C_SexF","C_ReligF","C_SESF", "C_OccupF", "C_HobbyF", "C_PolF")])
-
-RaceMatch<-rf[match(unique(rf$RaceC), rf$RaceC), c("C_Race","C_RaceF")]
-RaceMatch<-RaceMatch[order(RaceMatch$C_Race),]
-
-SexMatch<-rf[match(unique(rf$SexC), rf$SexC), c("C_Sex","C_SexF")]
-SexMatch<-SexMatch[order(SexMatch$C_Sex),]
-
-GenderMatch<-rf[match(unique(rf$GenderC), rf$GenderC), c("C_Gender","C_GenderF")]
-GenderMatch<-GenderMatch[order(GenderMatch$C_Gender),]
-
-PolMatch<-rf[match(unique(rf$PolC), rf$PolC), c("C_Pol","C_PolF")]
-PolMatch<-PolMatch[order(PolMatch$C_Pol),]
-
-OccupMatch<-rf[match(unique(rf$OccupC), rf$OccupC), c("C_Occup","C_OccupF")]
-OccupMatch<-OccupMatch[order(OccupMatch$C_Occup),]
-
-SESMatch<-rf[match(unique(rf$SESC), rf$SESC), c("C_SES","C_SESF")]
-SESMatch<-SESMatch[order(SESMatch$C_SES),]
-
-HobbyMatch<-rf[match(unique(rf$HobbC), rf$HobbC), c("C_Hobby","C_HobbyF")]
-HobbyMatch<-HobbyMatch[order(HobbyMatch$C_Hobby),]
-
-ReligMatch<-rf[match(unique(rf$ReligC), rf$ReligC), c("C_Relig","C_ReligF")]
-ReligMatch<-ReligMatch[order(ReligMatch$C_Relig),]
-
-prop.table(table(rf$RaceC))
-prop.table(table(rf$GenderC))
-prop.table(table(rf$SexC))
-prop.table(table(rf$ReligC))
-prop.table(table(rf$SESC))
-prop.table(table(rf$PolC))
-```
-
-```{r}
-RaceMatch$id <- "Race"
-GenderMatch$id <- "Gen"
-SexMatch$id <- "Sex"
-ReligMatch$id <- "Rel"
-SESMatch$id <- "SES"
-PolMatch$id <- "Pol"
-OccupMatch$id <- "Occup"
-HobbyMatch$id <- "Hob"
-
-MatchList <- list(RaceMatch,
-                  GenderMatch,
-                  SexMatch,
-                  ReligMatch,
-                  SESMatch,
-                  PolMatch,
-                  OccupMatch,
-                  HobbyMatch)
-MatchDf <- data.frame()
-for(i in MatchList){
-  df<-na.omit(i)
-  colnames(df) <- c("idC","idCF","id")
-  MatchDf <- rbind(MatchDf,df)
-}
-```
-
-
-```{r}
-fullLong <- merge(fullLong, qcidlong, by = c("subID","id"))
+fullLong <- merge(fullLong, qcidlong, by = c("subID","idcode"))
 ```
 
 # Ind Diff Cleaning
 
 ```{r}
-indDiff <- rawSec[c(grep("^RSE1$",colnames(rawSec)):grep("^Multiculturalism_2$",colnames(rawSec)), grep("^id$",colnames(rawSec)) )]
-indDiff$check4 <- NULL
+
+indDiffT1 <- rawFirst %>% select(id,RSE1:MGIS_14,Educ,Status)
+indDiffT2 <- rawSec %>% select(id,RSE1:SCS_10,Condition,identity)
+indDiffT1<-rename(indDiffT1, subID=id)
+indDiffT2<-rename(indDiffT2, subID=id)
+indDiffT2$check4 <- NULL
 ```
 
 ## Need for Cognition
 
 ```{r}
 NFCrevcols = c("NFC.6_3", "NFC.6_4")
-indDiff[ ,NFCrevcols] = 8 - indDiff[ ,NFCrevcols]
-ind1 <- grep("NFC.6_1", colnames(indDiff))
+indDiffT2[ ,NFCrevcols] = 8 - indDiffT2[ ,NFCrevcols]
+ind1 <- grep("NFC.6_1", colnames(indDiffT2))
 ind1<-min(ind1)
-ind2<- grep("NFC.6_6", colnames(indDiff))
+ind2<- grep("NFC.6_6", colnames(indDiffT2))
 ind2<-max(ind2)
 # Compute scores for Need for Cog
-indDiff$NFC = rowMeans(indDiff[, ind1:ind2], na.rm = TRUE)
+indDiffT2$NFC = rowMeans(indDiffT2[, ind1:ind2], na.rm = TRUE)
 
-psych::alpha(indDiff[ind1:ind2])
+psych::alpha(indDiffT2[ind1:ind2])
+```
+
+## Multicomponent Group Identification Scale
+
+# Time 1
+
+```{r}
+# Solidarity items
+MGIS_Solidcols = paste0("MGIS_",c(1,2,3))
+indDiffT1$MGIS_Solid.T1 = rowMeans(indDiffT1[, MGIS_Solidcols], na.rm = TRUE)
+psych::alpha(indDiffT1[MGIS_Solidcols])$total
+# Solidarity items
+MGIS_Satiscols = paste0("MGIS_",c(4,5,6,7))
+indDiffT1$MGIS_Satis.T1 = rowMeans(indDiffT1[, MGIS_Satiscols], na.rm = TRUE)
+psych::alpha(indDiffT1[MGIS_Satiscols])$total
+# Solidarity items
+MGIS_Centcols = paste0("MGIS_",c(8,9,10))
+indDiffT1$MGIS_Cent.T1 = rowMeans(indDiffT1[, MGIS_Centcols], na.rm = TRUE)
+psych::alpha(indDiffT1[MGIS_Centcols])$total
+# Self-Investment items
+MGIS_SIcols = paste0("MGIS_",1:10)
+indDiffT1$MGIS_SI.T1 = rowMeans(indDiffT1[, MGIS_SIcols], na.rm = TRUE)
+psych::alpha(indDiffT1[MGIS_SIcols])$total
+# Solidarity items
+MGIS_ISeStercols = paste0("MGIS_",c(11,12))
+indDiffT1$MGIS_ISeSte.T1 = rowMeans(indDiffT1[, MGIS_ISeStercols], na.rm = TRUE)
+psych::alpha(indDiffT1[MGIS_ISeStercols])$total
+# Solidarity items
+MGIS_GSeStercols = paste0("MGIS_",c(13,14))
+indDiffT1$MGIS_GSeSte.T1 = rowMeans(indDiffT1[, MGIS_GSeStercols], na.rm = TRUE)
+psych::alpha(indDiffT1[MGIS_GSeStercols])$total
+# Self-Definition items
+MGIS_SDcols = paste0("MGIS_",11:14)
+indDiffT1$MGIS_SD.T1 = rowMeans(indDiffT1[, MGIS_SDcols], na.rm = TRUE)
+psych::alpha(indDiffT1[MGIS_SDcols])$total
+# MGIS
+MGIS_cols = paste0("MGIS_",1:14)
+indDiffT1$MGIS.T1 = rowMeans(indDiffT1[, MGIS_cols], na.rm = TRUE)
+psych::alpha(indDiffT1[MGIS_cols])$total
+```
+
+
+# Time 2
+
+```{r}
+# Solidarity items
+MGIS_Solidcols = paste0("MGIS_",c(1,2,3))
+indDiffT2$MGIS_Solid.T2 = rowMeans(indDiffT2[, MGIS_Solidcols], na.rm = TRUE)
+psych::alpha(indDiffT2[MGIS_Solidcols])$total
+# Solidarity items
+MGIS_Satiscols = paste0("MGIS_",c(4,5,6,7))
+indDiffT2$MGIS_Satis.T2 = rowMeans(indDiffT2[, MGIS_Satiscols], na.rm = TRUE)
+psych::alpha(indDiffT2[MGIS_Satiscols])$total
+# Solidarity items
+MGIS_Centcols = paste0("MGIS_",c(8,9,10))
+indDiffT2$MGIS_Cent.T2 = rowMeans(indDiffT2[, MGIS_Centcols], na.rm = TRUE)
+psych::alpha(indDiffT2[MGIS_Centcols])$total
+# Self-Investment items
+MGIS_SIcols = paste0("MGIS_",1:10)
+indDiffT2$MGIS_SI.T2 = rowMeans(indDiffT2[, MGIS_SIcols], na.rm = TRUE)
+psych::alpha(indDiffT2[MGIS_SIcols])$total
+# Solidarity items
+MGIS_ISeStercols = paste0("MGIS_",c(11,12))
+indDiffT2$MGIS_ISeSte.T2 = rowMeans(indDiffT2[, MGIS_ISeStercols], na.rm = TRUE)
+psych::alpha(indDiffT2[MGIS_ISeStercols])$total
+# Solidarity items
+MGIS_GSeStercols = paste0("MGIS_",c(13,14))
+indDiffT2$MGIS_GSeSte.T2 = rowMeans(indDiffT2[, MGIS_GSeStercols], na.rm = TRUE)
+psych::alpha(indDiffT2[MGIS_GSeStercols])$total
+# Self-Definition items
+MGIS_SDcols = paste0("MGIS_",11:14)
+indDiffT2$MGIS_SD.T2 = rowMeans(indDiffT2[, MGIS_SDcols], na.rm = TRUE)
+psych::alpha(indDiffT2[MGIS_SDcols])$total
+# MGIS
+MGIS_cols = paste0("MGIS_",1:14)
+indDiffT2$MGIS.T2 = rowMeans(indDiffT2[, MGIS_cols], na.rm = TRUE)
+psych::alpha(indDiffT2[MGIS_cols])$total
+```
+
+## Stigma Consciousness Scale
+
+# Time 1
+
+```{r}
+# Reverse code Stigma Consciousness items
+SCSrevcols = paste0("SCS_",c(1,2,4,5,6,7,9))
+indDiffT1[ ,SCSrevcols] = 8 - indDiffT1[ ,SCSrevcols]
+ind1 <- grep("^SCS_1$", colnames(indDiffT1))
+ind1<-min(ind1)
+ind2<- grep("^SCS_10$", colnames(indDiffT1))
+ind2<-max(ind2)
+# Compute scores for Stigma Consciousness
+indDiffT1$SCS.T1 = rowMeans(indDiffT1[, ind1:ind2], na.rm = TRUE)
+psych::alpha(indDiffT1[ind1:ind2])
+```
+
+
+# Time 2
+
+```{r}
+# Reverse code Stigma Consciousness items
+SCSrevcols = paste0("SCS_",c(1,2,4,5,6,7,9))
+indDiffT2[ ,SCSrevcols] = 8 - indDiffT2[ ,SCSrevcols]
+ind1 <- grep("^SCS_1$", colnames(indDiffT2))
+ind1<-min(ind1)
+ind2<- grep("^SCS_10$", colnames(indDiffT2))
+ind2<-max(ind2)
+# Compute scores for Stigma Consciousness
+indDiffT2$SCS.T2 = rowMeans(indDiffT2[, ind1:ind2], na.rm = TRUE)
+psych::alpha(indDiffT2[ind1:ind2])
 ```
 
 ## Self-Esteem
 
+# Time 1
+
 ```{r}
 # Reverse code Rosenberg Self-Esteem items
 SErevcols = c("RSE2", "RSE5", "RSE6", "RSE8", "RSE9")
-indDiff[ ,SErevcols] = 5 - indDiff[ ,SErevcols]
-ind1 <- grep("^RSE1$", colnames(indDiff))
+indDiffT1[ ,SErevcols] = 5 - indDiffT1[ ,SErevcols]
+ind1 <- grep("^RSE1$", colnames(indDiffT1))
 ind1<-min(ind1)
-ind2<- grep("^RSE10$", colnames(indDiff))
+ind2<- grep("^RSE10$", colnames(indDiffT1))
 ind2<-max(ind2)
 # Compute scores for Rosenberg Self-Esteem
-indDiff$SE = rowMeans(indDiff[, ind1:ind2], na.rm = TRUE)
-indDiff$SE <- 5 - indDiff$SE
-psych::alpha(indDiff[ind1:ind2])
+indDiffT1$SE.T1 = rowMeans(indDiffT1[, ind1:ind2], na.rm = TRUE)
+indDiffT1$SE.T1 <- 5 - indDiffT1$SE.T1
+psych::alpha(indDiffT1[ind1:ind2])
 ```
+
+
+# Time 2
+
+```{r}
+# Reverse code Rosenberg Self-Esteem items
+SErevcols = c("RSE2", "RSE5", "RSE6", "RSE8", "RSE9")
+indDiffT2[ ,SErevcols] = 5 - indDiffT2[ ,SErevcols]
+ind1 <- grep("^RSE1$", colnames(indDiffT2))
+ind1<-min(ind1)
+ind2<- grep("^RSE10$", colnames(indDiffT2))
+ind2<-max(ind2)
+# Compute scores for Rosenberg Self-Esteem
+indDiffT2$SE.T2 = rowMeans(indDiffT2[, ind1:ind2], na.rm = TRUE)
+indDiffT2$SE.T2 <- 5 - indDiffT2$SE.T2
+psych::alpha(indDiffT2[ind1:ind2])
+```
+
+# PANAS
+
+# Time 1
+
+```{r}
+posinds<-paste0("PANAS_",c(1, 3, 5, 9, 10, 12, 14, 16, 17, 19))
+neginds<-paste0("PANAS_",c(2, 4, 6, 7, 8, 11, 13, 15, 18, 20))
+indDiffT1$PANAS_Neg.T1 = rowMeans(indDiffT1[, neginds], na.rm = TRUE)
+indDiffT1$PANAS_Pos.T1 = rowMeans(indDiffT1[, posinds], na.rm = TRUE)
+
+psych::alpha(indDiffT1[posinds])
+
+psych::alpha(indDiffT1[neginds])
+```
+
+## Time 2
+
+```{r}
+posinds<-paste0("PANAS_",c(1, 3, 5, 9, 10, 12, 14, 16, 17, 19))
+neginds<-paste0("PANAS_",c(2, 4, 6, 7, 8, 11, 13, 15, 18, 20))
+indDiffT2$PANAS_Neg.T2 = rowMeans(indDiffT2[, neginds], na.rm = TRUE)
+indDiffT2$PANAS_Pos.T2 = rowMeans(indDiffT2[, posinds], na.rm = TRUE)
+
+psych::alpha(indDiffT2[posinds])
+
+psych::alpha(indDiffT2[neginds])
+```
+
 
 ## Collective Self-Esteem
 
 ```{r}
-attach(indDiff)
+attach(indDiffT2)
 # Reverse code Collective Self-Esteem items (2, 4, 5, 7, 10 ,12, 13, 15)
 CSErevcols = c("CSE2", "CSE4", "CSE5", "CSE7", "CSE10", "CSE12", "CSE13", "CSE15")
-indDiff[ ,CSErevcols] = 8 - indDiff[ ,CSErevcols]
+indDiffT2[ ,CSErevcols] = 8 - indDiffT2[ ,CSErevcols]
 # Compute score for Membership Self-Esteem
 MemSEcols = c("CSE1", "CSE5", "CSE9", "CSE10")
-indDiff$MemSE = rowMeans(indDiff[, MemSEcols], na.rm = TRUE)
-psych::alpha(indDiff[,MemSEcols])
+indDiffT2$MemSE = rowMeans(indDiffT2[, MemSEcols], na.rm = TRUE)
+psych::alpha(indDiffT2[,MemSEcols])
 # Compute score for Private Collective Self-Esteem
 PrivCSEcols = c("CSE2", "CSE6", "CSE10", "CSE14")
-indDiff$PrivCSE = rowMeans(indDiff[, PrivCSEcols], na.rm = TRUE)
-psych::alpha(indDiff[,PrivCSEcols])
+indDiffT2$PrivCSE = rowMeans(indDiffT2[, PrivCSEcols], na.rm = TRUE)
+psych::alpha(indDiffT2[,PrivCSEcols])
 # Compute score for Public Collective Self-Esteem
 PubCSEcols = c("CSE3", "CSE7", "CSE11", "CSE15")
-indDiff$PubCSE = rowMeans(indDiff[, PubCSEcols], na.rm = TRUE)
-psych::alpha(indDiff[,PubCSEcols])
+indDiffT2$PubCSE = rowMeans(indDiffT2[, PubCSEcols], na.rm = TRUE)
+psych::alpha(indDiffT2[,PubCSEcols])
 # Compute score for Importance to Identity
 IdImpcols = c("CSE4", "CSE8", "CSE12", "CSE16")
-indDiff$IdImp = rowMeans(indDiff[, IdImpcols], na.rm = TRUE)
-psych::alpha(indDiff[,IdImpcols])
+indDiffT2$IdImp = rowMeans(indDiffT2[, IdImpcols], na.rm = TRUE)
+psych::alpha(indDiffT2[,IdImpcols])
+detach(indDiffT2)
 ```
 
 ## Dialectical Self-Views
@@ -830,18 +1058,18 @@ psych::alpha(indDiff[,IdImpcols])
 #DSrevcols = c("DS_2", "DS_6", "DS_10", "DS_12", "DS_17")
 # reverse score 1, 5, 6, 7, 9, 14
 
-columnNames <- colnames(indDiff[grep("^DS",colnames(indDiff))])
+columnNames <- colnames(indDiffT2[grep("^DS",colnames(indDiffT2))])
 DSrevcols <- columnNames[c(1,5,6,7,9,14)]
 #DSrevcols = c("DS_1", "DS_7", "DS_8", "DS_9", "DS_11","DS_17")
-indDiff[ ,DSrevcols] = 8 - indDiff[ ,DSrevcols]
-ind1 <- grep("DS_1", colnames(indDiff))
+indDiffT2[ ,DSrevcols] = 8 - indDiffT2[ ,DSrevcols]
+ind1 <- grep("DS_1", colnames(indDiffT2))
 ind1<-min(ind1)
-ind2<- grep("DS_14", colnames(indDiff))
+ind2<- grep("DS_14", colnames(indDiffT2))
 ind2<-max(ind2)
 # Compute scores for Need for Cog
-indDiff$DS = rowMeans(indDiff[, ind1:ind2], na.rm = TRUE)
+indDiffT2$DS = rowMeans(indDiffT2[, ind1:ind2], na.rm = TRUE)
 
-psych::alpha(indDiff[ind1:ind2])
+psych::alpha(indDiffT2[ind1:ind2])
 ```
 
 ## Self-Concept Clarity
@@ -850,28 +1078,28 @@ psych::alpha(indDiff[ind1:ind2])
 # Reverse code Self-Concept Clarity Scale items
 SCC_revcols = c("SCC1", "SCC2", "SCC3", "SCC4", "SCC5", "SCC7", 
                  "SCC8", "SCC9", "SCC10", "SCC12")
-indDiff[ ,SCC_revcols] = 6 - indDiff[ ,SCC_revcols]
-ind1 <- grep("SCC1", colnames(indDiff))
+indDiffT2[ ,SCC_revcols] = 6 - indDiffT2[ ,SCC_revcols]
+ind1 <- grep("SCC1", colnames(indDiffT2))
 ind1<-min(ind1)
-ind2<- grep("SCC12", colnames(indDiff))
+ind2<- grep("SCC12", colnames(indDiffT2))
 ind2<-max(ind2)
 # Compute score for Self-Concept Clarity Scale items
-indDiff$SCC = rowMeans(indDiff[,ind1:ind2], na.rm = TRUE)
+indDiffT2$SCC = rowMeans(indDiffT2[,ind1:ind2], na.rm = TRUE)
 
-psych::alpha(indDiff[ind1:ind2])
+psych::alpha(indDiffT2[ind1:ind2])
 ```
 
 ## Satisfaction with Life
 
 ```{r}
-ind1 <- grep("SWLS_1", colnames(indDiff))
+ind1 <- grep("SWLS_1", colnames(indDiffT2))
 ind1<-min(ind1)
-ind2<- grep("SWLS_5", colnames(indDiff))
+ind2<- grep("SWLS_5", colnames(indDiffT2))
 ind2<-max(ind2)
 # Compute score for Self-Concept Clarity Scale items
-indDiff$SWLS = rowMeans(indDiff[,ind1:ind2], na.rm = TRUE)
+indDiffT2$SWLS = rowMeans(indDiffT2[,ind1:ind2], na.rm = TRUE)
 
-psych::alpha(indDiff[ind1:ind2])
+psych::alpha(indDiffT2[ind1:ind2])
 ```
 
 ## CESD
@@ -879,15 +1107,14 @@ psych::alpha(indDiff[ind1:ind2])
 ```{r}
 # Reverse code Self-Concept Clarity Scale items
 CESD_revcols = c("CESD4", "CESD8", "CESD12", "CESD16")
-indDiff[ ,CESD_revcols] = 5 - indDiff[ ,CESD_revcols]
-ind1 <- grep("CESD", colnames(indDiff))
+indDiffT2[ ,CESD_revcols] = 5 - indDiffT2[ ,CESD_revcols]
+ind1 <- grep("CESD", colnames(indDiffT2))
 ind1<-min(ind1)
-ind2<- grep("CESD", colnames(indDiff))
+ind2<- grep("CESD", colnames(indDiffT2))
 ind2<-max(ind2)
 # Compute score for Self-Concept Clarity Scale items
-indDiff$CESD = rowMeans(indDiff[,ind1:ind2], na.rm = TRUE)
-
-psych::alpha(indDiff[ind1:ind2])
+indDiffT2$CESD = rowMeans(indDiffT2[,ind1:ind2], na.rm = TRUE)
+psych::alpha(indDiffT2[ind1:ind2])
 ```
 
 ## Singelis Self-Construal
@@ -895,31 +1122,12 @@ psych::alpha(indDiff[ind1:ind2])
 ```{r}
 # Compute score for Independent
 Indcols = c("Sing1", "Sing2", "Sing5", "Sing7", "Sing9", "Sing10", "Sing13", "Sing15", "Sing18", "Sing20", "Sing22", "Sing24", "Sing25", "Sing27", "Sing29")
-indDiff$Ind = rowMeans(indDiff[, Indcols], na.rm = TRUE)
-psych::alpha(indDiff[,Indcols])
+indDiffT2$Ind = rowMeans(indDiffT2[, Indcols], na.rm = TRUE)
+psych::alpha(indDiffT2[,Indcols])
 # Compute score for Interdependent
 Indcols = c("Sing3", "Sing4", "Sing6", "Sing8", "Sing11", "Sing12", "Sing14", "Sing16", "Sing17", "Sing19", "Sing21", "Sing23", "Sing26", "Sing28", "Sing30")
-indDiff$Inter = rowMeans(indDiff[, Indcols], na.rm = TRUE)
-psych::alpha(indDiff[,Indcols])
-```
-# IMS and EMS
-
-```{r}
-# Compute score for Independent
-inds <- grep("^EMS",colnames(indDiff))
-indDiff$EMS = rowMeans(indDiff[, inds], na.rm = TRUE)
-psych::alpha(indDiff[,inds])
-
-inds <- grep("^IMS",colnames(indDiff))
-indDiff$IMS = rowMeans(indDiff[, inds], na.rm = TRUE)
-psych::alpha(indDiff[,inds])
-```
-# Multiculturalism
-
-```{r}
-indDiff$Multiculturalism_2 <- 11-indDiff$Multiculturalism_2
-indDiff$MC <- rowMeans(indDiff[,c("Multiculturalism_1","Multiculturalism_2")])
-psych::alpha(indDiff[,c("Multiculturalism_1","Multiculturalism_2")])
+indDiffT2$Inter = rowMeans(indDiffT2[, Indcols], na.rm = TRUE)
+psych::alpha(indDiffT2[,Indcols])
 ```
 
 # Self-Complexity Scores
@@ -942,58 +1150,69 @@ SCdf <- merge(SCdf, PhiScores, by = "subID")
 
 
 ```{r}
-colnames(indDiff)[colnames(indDiff)=="id"] <- "subID"
+indDiffT2shorten <- indDiffT2 %>% select(subID, Inter, Ind, CESD, SWLS, SCC, DS, IdImp, PubCSE, PrivCSE, MemSE, PANAS_Pos.T2, PANAS_Neg.T2, SE.T2, SCS.T2, intersect(starts_with("MGIS_"),ends_with(".T2")), MGIS.T2, identity, Condition)
+indDiffT1shorten <- indDiffT1  %>% select(subID, Educ, Status, PANAS_Pos.T1, PANAS_Neg.T1, SE.T1, SCS.T1, intersect(starts_with("MGIS_"),ends_with(".T2")), MGIS.T1)
+indDiff <- merge(indDiffT1shorten, indDiffT2shorten, by = "subID")
 indDiff <- merge(indDiff, SCdf, by = "subID")
-fullLong <- merge(fullLong, indDiff[c("subID","SE","SCC","NFC","Ind","Inter","SWLS","DS","MemSE","PrivCSE","PubCSE","IdImp","CESD","IMS","EMS","MC")], by = "subID", all.x=T)
 fullLong <- merge(fullLong, globalIDDf, by = "subID", all.x = T)
 ```
 
 # generate dataframe for semantic distance from identity
 
 ```{r}
-identities <- colnames(subTFMat)[1:8]
-traits <- colnames(subTFMat)[9:304]
-distMatText <- matrix(nrow=296*length(uIds)*8,ncol=3)
-distMatNum <- matrix(nrow=296*length(uIds)*8,ncol=6)
+nrows <- sum( apply(idMat, 1, function(x) 8-sum(is.na(x))) ) * length(uIds) * 296 # number of rows based on number of dientities per p
+distMatText <- matrix(nrow=nrows,ncol=4)
+distMatNum <- matrix(nrow=nrows,ncol=6)
 #idToSimMat <- matrix(nrow = 0, ncol = 5)
-iterator1 <- 1
-iterator2 <- (296*8)
+
+iter <- 1
 for(n in 1:length(uIds)){
   i <- uIds[n]
-  evals <- rep(traitLong$selfResp[traitLong$subID==i],8)
+  identities <- idMat[idMat$subID==i,2:9] %>% as_vector() %>% na.omit()
+  traits <- c(posTraits$trait, negTraits$trait)
+  
+  if(iter == 1){
+    iterator1 <- 1
+    iterator2 <- (296*length(identities))
+  }else{
+    iterator1 <- iterator2 + 1
+    iterator2 <- iterator1+((296*length(identities))-1)
+  }
+ 
+  
+  evals <- rep(traitLong$selfResp[traitLong$subID==i],length(identities))
   curGraph1 <- get(paste0("subTonlyFGraph.",i))
-  distMatT <- distances(curGraph1, mode = "all")[1:8,9:304]
+  distMatT <- distances(curGraph1, mode = "all")[1:length(identities),(length(identities)+1) : (length(identities)+296)]
   distT <- c(t(distMatT))
-  distMatO <- distances(curGraph1, mode = "out")[1:8,9:304]
+  distMatO <- distances(curGraph1, mode = "out")[1:length(identities),(length(identities)+1) : (length(identities)+296)]
   distO <- c(t(distMatO))
   
   curGraph1 <- get(paste0("subTFGraph.",i))
   curGraph2 <- get(paste0("subTonlyFGraph.",i))
-  simsMat1 <- similarity.dice(curGraph1)[1:8,9:304]
+  simsMat1 <- similarity.dice(curGraph1)[1:length(identities),(length(identities)+1) : (length(identities)+296)]
   IT.Sim <- c(t(simsMat1))
-  simsMat2 <- similarity.dice(curGraph2)[1:8,9:304]
+  simsMat2 <- similarity.dice(curGraph2)[1:length(identities),(length(identities)+1) : (length(identities)+296)]
   T.Sim <- c(t(simsMat2))
   
-  block1 <- cbind(rep(i, 8*296), evals, distT, distO, IT.Sim, T.Sim)
-  block2 <- cbind(rep(traits,8), rep(c(rep("positive",148),rep("negative",148)),8),
-                  rep(identities, each=296))
+  block1 <- cbind(rep(i, length(identities)*296), evals, distT, distO, IT.Sim, T.Sim)
+  block2 <- cbind(rep(traits,length(identities)), rep(c(rep("positive",148),rep("negative",148)),length(identities)),
+                  rep(identities, each=296), rep(1:length(identities), each=296))
   
   distMatText[iterator1:iterator2, 1:ncol(block2)] <- block2
   distMatNum[iterator1:iterator2, 1:ncol(block1)] <- block1
   
-  iterator1 <- iterator1+(296*8)
-  iterator2 <- iterator1+((296*8)-1)
+  iter <- iter + 1
 }
 orderDf <- cbind(as.data.frame(distMatText), as.data.frame(distMatNum))
-colnames(orderDf) <- c("traits","valence","id","subID","selfResp","order","orderO", "IT.Sim", "T.Sim")
+colnames(orderDf) <- c("traits","valence","idq","idcode","subID","selfResp","order","orderO", "IT.Sim", "T.Sim")
 orderDf <- as.data.frame(orderDf)
 
 
 orderDf <- orderDf[order(orderDf$subID, orderDf$order),]
-orderDf <- merge(orderDf, qcidlong, by = c("subID","id"))
-orderDf <- merge(orderDf, idLong, by = c("subID","id"))
-orderDf <- merge(orderDf, indDiff[c("subID","SE","SCC","NFC","Ind","Inter","SWLS","DS","MemSE","PrivCSE","PubCSE","IdImp","CESD")], by = "subID")
-orderDf <- merge(orderDf, globalIDDf, by = "subID", all.x = T, all.y=T)
+orderDf <- merge(orderDf, qcidlong, by = c("subID","idcode","idq"))
+orderDf <- merge(orderDf, idLong, by = c("subID","idcode"))
+orderDf <- merge(orderDf, indDiff, by = "subID")
+orderDf <- merge(orderDf, globalIDDf, by = c("subID"), all.x = T, all.y=T)
 
 orderDf$order[is.infinite(orderDf$order)] <- NA
 orderDf$orderO[is.infinite(orderDf$orderO)] <- NA
@@ -1012,9 +1231,9 @@ uId<-unique(fullLong$id)
 # test<-fullLong[fullLong$id %in% as.array(uId), ]
 # test<-subset(fullLong, subID==uSub & id==uId)
 
-idShort <- merge(idLong, qcidlong, by = c("subID","id"))
-idShort <- merge(idShort, indDiff[c("subID","SE","SCC","NFC","Ind","Inter","SWLS","DS","MemSE","PrivCSE","PubCSE","IdImp","CESD")], by = c("subID"))
-idShort <- merge(idShort, globalIDDf, by = "subID", all.x = T)
+idShort <- merge(idLong, qcidlong, by = c("subID","idcode"))
+idShort <- merge(idShort, indDiff, by = c("subID"))
+idShort <- merge(idShort, globalIDDf, by = c("subID"), all.x = T)
 for(i in uSub){
   for(j in uId){
     idShort$sdSR[idShort$subID==i & idShort$id==j] <- sd(fullLong$selfResp[fullLong$subID==i & fullLong$id==j],na.rm=T)
@@ -1034,15 +1253,10 @@ fullLong <- merge(fullLong, traits, by = "traits")
 orderDf <- merge(orderDf, traits, by = c("traits","valence"))
 ```
 
-```{r}
-indDiffSmall <- merge(indDiff[c("subID","SE","SCC","NFC","Ind","Inter","SWLS","DS","MemSE","PrivCSE","PubCSE","IdImp","CESD","IMS","EMS","MC", "H_index", "overlap_norm", "phi")], globalIDDf, by = "subID")
-```
-
-
 
 ```{r}
 uIds <- unique(idShort$subID)
-uId <- unique(idShort$id)
+#uId <- unique(idShort$id)
 
 #fullSimDf <- matrix(ncol=6, nrow=8*length(uIds))
 fullSimDf <- data.frame()
@@ -1050,6 +1264,13 @@ fullSimDf <- data.frame()
 for(i in uIds){
     #subDf <- rawFirst[rawFirst$id==i,]
     subDf <- idShort[idShort$subID==i,]
+    
+    idNames <- idMat[idMat$subID==i,2:9] %>% as_vector() %>% na.omit()
+     numIdentities <- sum(!is.na(idMat[idMat$subID==i,2:9]))
+     
+     if(numIdentities==1){
+       next
+     }
   
     # identity to identity causing
     curGraph <- get(paste0("subIGraph.",i))
@@ -1065,88 +1286,75 @@ for(i in uIds){
     
     sim=similarity.dice(curGraph)
     simVect=sim[lower.tri(sim)==T]
-    if(length(simVect)<28){
-      break
-    }
+    # if(length(simVect)<28){
+    #   break
+    # }
     
     # Dice Similarity in All Shared Traits
     simIT=similarity.dice(curGraphItoT)
-    simIT=simIT[1:8,1:8]
+    simIT=simIT[1:numIdentities,1:numIdentities]
     simVectIT=simIT[lower.tri(simIT)==T]
-    if(length(simVectIT)<28){
-      break
-    }
+    # if(length(simVectIT)<28){
+    #   break
+    # }
     
     # Dice SimilarIy in All Shared TraIT.ps
     simIT.p=similarity.dice(curGraphItoT.p)
-    simIT.p=simIT.p[1:8,1:8]
+    simIT.p=simIT.p[1:numIdentities,1:numIdentities]
     simVectIT.p=simIT.p[lower.tri(simIT.p)==T]
-    if(length(simVectIT.p)<28){
-      break
-    }
+    # if(length(simVectIT.p)<28){
+    #   break
+    # }
     
     # Dice Similarity in Neg Shared Traits
     simIT.n=similarity.dice(curGraphItoT.n)
-    simIT.n=simIT.n[1:8,1:8]
+    simIT.n=simIT.n[1:numIdentities,1:numIdentities]
     simVectIT.n=sim[lower.tri(simIT.n)==T]
-    if(length(simVectIT.n)<28){
-      break
-    }
+    # if(length(simVectIT.n)<28){
+    #   break
+    # }
     
     # distance of positivity
     posVect <- as.vector(dist(idShort$pos[idShort$subID==i]))
-    if(length(posVect)<28){
-      break
-    }
+    # if(length(posVect)<28){
+    #   break
+    # }
     # distance of identification
     strengVect <- as.vector(dist(idShort$streng[idShort$subID==i]))
-    if(length(strengVect)<28){
-      break
-    }
+    # if(length(strengVect)<28){
+    #   break
+    # }
     # distance of stigma
     stigVect <- as.vector(dist(idShort$stig[idShort$subID==i]))
-    if(length(stigVect)<28){
-      break
-    }
+    # if(length(stigVect)<28){
+    #   break
+    # }
     # distance of size school
     sizeSVector <- as.vector(dist(idShort$sizeS[idShort$subID==i]))
-    if(length(sizeSVector)<28){
-      break
-    }
+    # if(length(sizeSVector)<28){
+    #   break
+    # }
     # distance of size school
     sizeUVector <- as.vector(dist(idShort$sizeU[idShort$subID==i]))
-    if(length(sizeUVector)<28){
-      break
-    }
+    # if(length(sizeUVector)<28){
+    #   break
+    # }
     inclusVector <- as.vector(dist(idShort$inclus[idShort$subID==i]))
-    if(length(inclusVector)<28){
-      break
-    }
+    # if(length(inclusVector)<28){
+    #   break
+    # }
     differVector <- as.vector(dist(idShort$differ[idShort$subID==i]))
-    if(length(differVector)<28){
-      break
-    }
-    inGVector <- as.vector(dist(idShort$inG[idShort$subID==i]))
-    if(length(inGVector)<28){
-      break
-    }
-    outGVector <- as.vector(dist(idShort$outG[idShort$subID==i]))
-    if(length(outGVector)<28){
-      break
-    }
+    # if(length(differVector)<28){
+    #   break
+    # }
 
     
-    curSimDf <- cbind(subID = rep(i,length(simVect)), pair = 1:28, idSim = simVect, idtSim = simVectIT, idtpSim = simVectIT.p, idtnSim = simVectIT.n, posDist = posVect, strengDist = strengVect, stigDist = stigVect, sizeSDist = sizeSVector, sizeUDist = sizeUVector, inclusDist = inclusVector, differDist = differVector, inGVDist = inGVector, outGDist = outGVector)
-    
-    
-    if(any(apply(curSimDf, 2, length)!=28)){
-      break
-    }
+    curSimDf <- cbind(subID = rep(i,length(simVect)), pair = 1:length(simVect), idSim = simVect, idtSim = simVectIT, idtpSim = simVectIT.p, idtnSim = simVectIT.n, posDist = posVect, strengDist = strengVect, stigDist = stigVect, sizeSDist = sizeSVector, sizeUDist = sizeUVector, inclusDist = inclusVector, differDist = differVector)
     
     fullSimDf <- rbind(fullSimDf, curSimDf)
     
 }
-fullSimDf <- merge(fullSimDf, indDiffSmall, by="subID")
+fullSimDf <- merge(fullSimDf, indDiff, by="subID")
 ```
 
 
@@ -1156,32 +1364,48 @@ wideId <- merge(wideId, netWide, by = "subID")
 ```
 
 ```{r}
-idNames <- c("Race","Gen","Sex","Rel","SES","Pol","Occup","Hob")
 veryLong <- merge(traitLong, idLong, by = "subID")
 traits$Idx <- 1:296
 veryLong <- merge(veryLong, traits, by.x = "traits", by = "traits")
 veryLong <- veryLong[order(veryLong$subID, veryLong$Idx),]
 veryLong$connect <- 0
 for(i in unique(veryLong$subID)){
-  for(j in 1:length(idNames)){
+  idNames <- idMat[idMat$subID==i,2:9] %>% as_vector() %>% na.omit()
+  numIdentities <- sum(!is.na(idMat[idMat$subID==i,2:9]))
+  
+  for(j in 1:numIdentities){
     curMat <- get(paste0("subTFMat.",i))
-    veryLong$connect[veryLong$subID==i & veryLong$id==idNames[j]] <- as.numeric(curMat[j,9:304])
+    veryLong$connect[veryLong$subID==i & veryLong$idcode==j] <- as.numeric(curMat[j,(numIdentities+1):(numIdentities+296)])
     #which(veryLong$traits[veryLong$subID==i & veryLong$id==j]==traitIdDf1st$traits[veryLong$subID==i & veryLong$id==j])
   }
 }
 
+
+
 fullLong2 <- subset(veryLong, connect == 1)
-veryLong <- merge(veryLong, qcidlong, by = c("subID","id"))
-veryLong <- merge(veryLong, indDiff[c("subID","SE","SCC","NFC","Ind","Inter","SWLS","DS","MemSE","PrivCSE","PubCSE","IdImp","CESD")], by = "subID", all.x=T)
-veryLong <- merge(veryLong, globalIDDf, by = "subID", all.x = T)
+veryLong <- merge(veryLong, qcidlong, by = c("subID","idcode"))
+veryLong <- merge(veryLong, indDiff, by = "subID", all.x=T)
+veryLong <- merge(veryLong, globalIDDf, by = c("subID"), all.x = T)
 veryLong <- merge(veryLong, idToTraitDf, by = c("subID","traits"))
+```
+
+```{r}
+RaceLong <- subset(veryLong, idcode==1)
+RaceLong$connectn <- as.numeric(RaceLong$connect)-1
+summarized <- Rmisc::summarySE(data=RaceLong, measurevar = "connect", groupvars = c("subID"))
+summarized <- Rmisc::summarySE(data=traitLong, measurevar = "selfResp", groupvars = c("subID"))
+summarized <- Rmisc::summarySE(data=idLong, measurevar = "streng", groupvars = c("subID","idcode"))
+```
+
+```{r}
+#troublesubs <- fullLong1[fullLong1$subID %in% summarized$subID[which(summarized$N>296)]]
 ```
 
 ```{r}
 veryLong <- merge(veryLong, tendSubdDf, by = "subID", all.x=T)
 orderDf <- merge(orderDf, tendSubdDf, by = "subID", all.x=T)
 idShort <- merge(idShort, tendSubdDf, by = "subID", all.x=T)
-indDiffSmall <- merge(indDiffSmall, tendSubdDf, by = "subID", all.x=T)
+indDiff <- merge(indDiff, tendSubdDf, by = "subID", all.x=T)
 fullSimDf <- merge(fullSimDf, tendSubdDf, by = "subID", all.x=T)
 
 
@@ -1190,15 +1414,34 @@ orderDf <- merge(orderDf, tendTraitDf, by = "traits", all.x=T)
 ```
 
 ```{r}
-#write.csv(fullLong, "~/Google Drive/Volumes/Research Project/Identities to Traits/Study 2/Cleaning/Output/id2traitDf.csv", row.names = F)
-write.csv(demos, "~/Google Drive/Volumes/Research Project/Identities to Traits/Study 2/Cleaning/Output/demos.csv", row.names = F)
-write.csv(veryLong, "~/Google Drive/Volumes/Research Project/Identities to Traits/Study 2/Cleaning/Output/id2traitDf.csv", row.names = F)
-write.csv(orderDf, "~/Google Drive/Volumes/Research Project/Identities to Traits/Study 2/Cleaning/Output/orderDf.csv", row.names = F)
-write.csv(idShort, "~/Google Drive/Volumes/Research Project/Identities to Traits/Study 2/Cleaning/Output/id2traitShort.csv", row.names = F)
-write.csv(indDiffSmall, "~/Google Drive/Volumes/Research Project/Identities to Traits/Study 2/Cleaning/Output/indDiff.csv", row.names = F)
-write.csv(fullSimDf, "~/Google Drive/Volumes/Research Project/Identities to Traits/Study 2/Cleaning/Output/identitySimDf.csv", row.names = F)
-write.csv(wideId, "~/Google Drive/Volumes/Research Project/Identities to Traits/Study 2/Cleaning/Output/idWide.csv", row.names = F)
-save.image("~/Google Drive/Volumes/Research Project/Identities to Traits/Study 2/Cleaning/Output/id2traitsworkspace.RData")
+
+for(i in 1:nrow(veryLong)){
+  if(veryLong$connect[i]==1 & veryLong$idcode[i]==1){
+    veryLong$traitspillW[i] <- 0
+    veryLong$traitspill[i] <- 0
+  }else if(veryLong$connect[i]==1 & veryLong$idcode[i]!=1){
+    if(is.na(veryLong$idDistRaceN[i])){
+      veryLong$traitspill[i] <- 1
+    }else{
+      veryLong$traitspill[i] <- 2
+    }
+  }else if(veryLong$connect[i]==0){
+    veryLong$traitspill[i] <- 3
+  }
+}
+```
+
+
+```{r}
+#write.csv(fullLong, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/id2traitDf.csv", row.names = F)
+write.csv(demos, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/demos.csv", row.names = F)
+write.csv(veryLong, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/id2traitDf.csv", row.names = F)
+write.csv(orderDf, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/orderDf.csv", row.names = F)
+write.csv(idShort, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/id2traitShort.csv", row.names = F)
+write.csv(indDiff, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/indDiff.csv", row.names = F)
+write.csv(fullSimDf, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/identitySimDf.csv", row.names = F)
+write.csv(wideId, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/idWide.csv", row.names = F)
+save.image("~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/id2traitsworkspace.RData")
 ```
 
 
