@@ -12,6 +12,7 @@ library(careless)
 ```{r}
 library(devtools)
 source_url("https://raw.githubusercontent.com/JacobElder/MiscellaneousR/master/assortativityNA.R")
+numbers_only <- function(x) !grepl("\\D", x)
 ```
 
 ```{r}
@@ -68,6 +69,12 @@ rawSec <- rawSec[rawSec$id!=47001,]
 
 rawSec$remove <- ifelse(rawSec$Serious1 < 5 | rawSec$Serious2 < 5 | rawSec$Usable == 2 | rawSec$Off7 == 3, 1, 0)
 rawSec <- rawSec[rawSec$remove!=1,]
+
+rawFirst <- rawFirst[numbers_only(rawFirst$id),]
+rawSec <- rawSec[numbers_only(rawSec$id),]
+
+rawFirst <- rawFirst[!is.na(rawFirst$id),]
+rawSec <- rawSec[!is.na(rawSec$id),]
 ```
 
 # Careless responding
@@ -156,6 +163,8 @@ for(n in 1:nrow(rawFirst)){
     subMat[c,as.numeric(unlist(selectWord))] <- 1 # Unweighted matrix
     diag(subMat) <- 0 # Set diagonal to 0s if participants nominated any self-connections
     subMatW[c,as.numeric(unlist(selectWord))]  <- (11 / 11) - as.numeric ( rawFirst[n,paste0("I",c,"_Sims_",as.numeric(unlist(selectWord) ))]/11 ) # Weighted matrix
+    # if participant didn't indicate weight, replace with 0
+    subMatW[is.na(subMatW)] <- 0
     # Flipped direction of fraction so more overlap is closer between identities
     
     diag(subMatW) <- 0 # Set diagonal to 0s if participants nominated any self-connections
@@ -173,7 +182,7 @@ for(n in 1:nrow(rawFirst)){
   assign(paste0("subIMat.",i),subMat)
   assign(paste0("subIGraph.",i),subGraph)
   
-  assign(paste0("subIMatW.",i),subMatW)
+  assign(paste0(".",i),subMatW)
   assign(paste0("subIGraphW.",i),subGraphW)
 }
 
@@ -294,8 +303,6 @@ for(n in 1:nrow(rawFirst)){
   
 }
 ```
-
-# Stopped here on 7-15-2022
 
 ```{r warning=FALSE}
 
@@ -1133,6 +1140,7 @@ psych::alpha(indDiffT2[,Indcols])
 # Self-Complexity Scores
 
 ```{r}
+#devtools::install_github("edinkasia/self-complexity-package")
 library(selfcomplexity)
 selfcomplexityDf <- traitIdDf1st %>%
   group_by(subID, id) %>%
@@ -1204,6 +1212,7 @@ for(n in 1:length(uIds)){
   iter <- iter + 1
 }
 orderDf <- cbind(as.data.frame(distMatText), as.data.frame(distMatNum))
+orderDf[(ncol(distMatText)+1):ncol(orderDf)] <- apply(orderDf[(ncol(distMatText)+1):ncol(orderDf)], 2, as.numeric)
 colnames(orderDf) <- c("traits","valence","idq","idcode","subID","selfResp","order","orderO", "IT.Sim", "T.Sim")
 orderDf <- as.data.frame(orderDf)
 
@@ -1414,21 +1423,21 @@ orderDf <- merge(orderDf, tendTraitDf, by = "traits", all.x=T)
 ```
 
 ```{r}
-
-for(i in 1:nrow(veryLong)){
-  if(veryLong$connect[i]==1 & veryLong$idcode[i]==1){
-    veryLong$traitspillW[i] <- 0
-    veryLong$traitspill[i] <- 0
-  }else if(veryLong$connect[i]==1 & veryLong$idcode[i]!=1){
-    if(is.na(veryLong$idDistRaceN[i])){
-      veryLong$traitspill[i] <- 1
-    }else{
-      veryLong$traitspill[i] <- 2
-    }
-  }else if(veryLong$connect[i]==0){
-    veryLong$traitspill[i] <- 3
-  }
-}
+# 
+# for(i in 1:nrow(veryLong)){
+#   if(veryLong$connect[i]==1 & veryLong$idcode[i]==1){
+#     veryLong$traitspillW[i] <- 0
+#     veryLong$traitspill[i] <- 0
+#   }else if(veryLong$connect[i]==1 & veryLong$idcode[i]!=1){
+#     if(is.na(veryLong$idDistRaceN[i])){
+#       veryLong$traitspill[i] <- 1
+#     }else{
+#       veryLong$traitspill[i] <- 2
+#     }
+#   }else if(veryLong$connect[i]==0){
+#     veryLong$traitspill[i] <- 3
+#   }
+# }
 ```
 
 
