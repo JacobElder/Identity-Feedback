@@ -162,7 +162,7 @@ for(n in 1:nrow(rawFirst)){
     # populate 1s for select identities in row
     subMat[c,as.numeric(unlist(selectWord))] <- 1 # Unweighted matrix
     diag(subMat) <- 0 # Set diagonal to 0s if participants nominated any self-connections
-    subMatW[c,as.numeric(unlist(selectWord))]  <- (11 / 11) - as.numeric ( rawFirst[n,paste0("I",c,"_Sims_",as.numeric(unlist(selectWord) ))]/11 ) # Weighted matrix
+    subMatW[c,as.numeric(unlist(selectWord))]  <- (rawFirst[n,paste0("I",c,"_Sims_",as.numeric(unlist(selectWord) ))] ) # Weighted matrix
     # if participant didn't indicate weight, replace with 0
     subMatW[is.na(subMatW)] <- 0
     # Flipped direction of fraction so more overlap is closer between identities
