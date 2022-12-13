@@ -1,0 +1,472 @@
+---
+title: "Identity-Feedback and Trait Self-Beliefs"
+author: "Jacob Elder"
+format: revealjs
+editor: visual
+---
+
+```{r, results='hide',message=FALSE,warning=FALSE}
+library(groundhog)
+pkgs <-  c("lmerTest", "ggeffects","r2glmm", "tidyverse","here", "sjPlot", "ggpubr", "wesanderson", "effectsize", "broom.mixed", "kableExtra")
+groundhog.day <- '2022-07-25'
+groundhog.library(pkgs, groundhog.day)
+i_am("Identity-Feedback.Rproj")
+#plotDir <- "/Volumes/Research Project/Trait_TestRetest/WeekTRT/plots/"
+
+devtools::source_url("https://raw.githubusercontent.com/JacobElder/MiscellaneousR/master/corToOne.R")
+devtools::source_url("https://raw.githubusercontent.com/JacobElder/MiscellaneousR/master/plotCommAxes.R")
+```
+
+```{r}
+fullLong1 <- as.data.frame(arrow::read_parquet(here("Study 1","Data","id2traitDf.parquet")))
+orderDf1 <- as.data.frame(arrow::read_parquet(here("Study 1","Data","orderDf.parquet")))
+idShort1 <- as.data.frame(arrow::read_parquet(here("Study 1","Data","id2traitShort.parquet")))
+indDiff1 <- as.data.frame(arrow::read_parquet(here("Study 1","Data","indDiff.parquet")))
+idSim1 <-as.data.frame(arrow::read_parquet(here("Study 1","Data","identitySimDf.parquet")))
+```
+
+```{r, include=F}
+# subset data for traits to only appear once per subject
+
+traitsPerS1 <- fullLong1 %>% distinct(subID, Idx, .keep_all = TRUE)
+
+# subset data for only connected traits to appear per subject
+
+connectDf1 <- fullLong1 %>% filter(connect==1)
+
+# convert to factors
+
+fullLong1$connect <- as.factor(fullLong1$connect)
+levels(fullLong1$connect) <- list(No  = "0", Yes = "1")
+
+fullLong1$Condition <- as.factor(fullLong1$Condition)
+levels(fullLong1$Condition) <- list(Control = "0", Feedback = "1")
+idShort1$Condition <- as.factor(idShort1$Condition)
+levels(idShort1$Condition) <- list(Control = "0", Feedback = "1")
+orderDf1$Condition <- as.factor(orderDf1$Condition)
+levels(orderDf1$Condition) <- list(Control = "0", Feedback = "1")
+
+# pos neg asymmetry
+
+idShort1$pndiff <- idShort1$pI2Tdeg - idShort1$nI2Tdeg
+
+RaceLong <- subset(fullLong1, idq==identity)
+OrderRace <- subset(orderDf1, idq==identity)
+
+fullLong1$connectn <- as.numeric(fullLong1$connect)-1
+summarized <- Rmisc::summarySE(data=fullLong1, measurevar = "selfResp", groupvars = c("subID","idcode","connect"), na.rm=T)
+
+summarized<-tidyr::pivot_wider(summarized, id_cols=c("subID","idcode"), values_from="selfResp",names_from="connect")
+
+shortened <- fullLong1[match(unique(fullLong1$subID), fullLong1$subID),]
+
+summarized <- merge(summarized, idShort1, by=c("subID","idcode"))
+
+summarized$diff <- summarized$Yes-summarized$No
+
+fullLong1$raceyn <- ifelse(fullLong1$idcode==1, "Racial", "Not")
+```
+
+## Self and Identity Theory
+
+-   Self-Schema Theory: Self as stable, long-term knowledge structure
+-   Social Identity Framework: Self as defined by situationally salient social identities, contributing to 'depersonalization'
+    -   Self-stereotyping: Group shapes self
+-   Self as information base for inference about groups
+    -   Self-anchoring: Self shapes group
+-   Does the self define the group or does the group define the self?
+
+## Parallel Routes to Social Identification
+
+-   Resolving cognitive ambiguities via induction or deduction
+-   Self-Stereotyping:
+    -   Deduction-to-the-self
+
+    -   Clearly defined, salient, accessible group
+-   Self-Anchoring:
+    -   Induction-to-the-group
+
+    -   Group is not clearly defined, or novel
+
+## Structuring Identity and Trait Self-Beliefs
+
+-   Merging prior research
+    -   Simultaneously considering trait AND identity beliefs
+
+    -   Considering within-person beliefs
+-   Linking idiosyncratic beliefs about social identities to normative, semantic beliefs about traits
+    -   Offer insight into how the social (i.e., group membership) shapes the personal (i.e., trait beliefs)
+
+    -   How similarity can support inferential processes
+
+## What motivates people to see themselves like the group?
+
+-   Prior research/theory largely considered social identification as a cognitive processes
+-   Later research emerged on motivational mechanisms of identification
+    -   Uncertainty (Hogg, 2007)
+
+    -   Inclusiveness and Distinctiveness (Brewer,1991)
+-   Threat, stigma, stressors have been considered important to self-stereotyping (Bell & Burkley, 2014), fulfillment of stereotypic expectations (Steele & Aranson, 1995)
+
+## Questions
+
+Do identity stressors cause people to rely on their group for self-inference (i.e., self-stereotype)?
+
+Does relational similarity to group typical traits predict self-deduction?
+
+Does feedback spread between overlapping identities and their associated traits, and not merely an identity's associated traits?
+
+## Prior Identities-to-Traits Network Study
+
+-   Pre-existing semantic network of 148x148 positive traits and 148x148 negative traits1,2,3
+-   List identities belonging to 8 categories
+-   Race, Gender, Sexuality, SES, Religion, Politics, Occupation, Hobby
+-   Nominate relations between the identities
+-   Nominate relations between identities and traits
+-   Generates 8x8 identity-to-identity network, and 304x304 full network
+-   comprising 8x148 and 8x148 identity-to-trait networks
+
+## Changes to Design
+
+-   Identity-to-identity connections estimated as "weighted" rather than "non-weighted"
+    -   Employ Brewer et al. (2002) "social identity complexity" as a measure of similarity/overlap between identities in identity-to-identity network
+
+    -   Lower is more similar/closer, higher is dissimilar/farther
+-   As many identities (up to 8) as participant intends to list, of different categories
+    -   e.g., Can now be more than 1+ Race identity
+
+## First Half
+
+-   Demographics
+-   Identity Creation
+-   Identity Relations
+-   Identity-to-Trait Relations
+    -   Connections (Edges)
+
+    -   Overlap/Similarity (Weights)
+-   Well-Being, Stigma, and Identification Questionnaires
+
+## Second Half
+
+-   Identity Manipulation or Control
+-   Identity-specific questions:
+    -   Strength of identification
+
+    -   Positivity
+
+    -   Stigmatization
+
+    -   Group Size
+
+    -   Bias
+-   Self-evaluate on 296 traits from 1 (Not at all) to 7 (Extremely)
+-   Well-Being, Stigma, and Identification Questionnaires
+
+## Asian Feedback
+
+![](images/Screen%20Shot%202022-10-18%20at%207.04.43%20PM.png)
+
+## Latino Feedback
+
+![](images/Screen%20Shot%202022-10-18%20at%207.05.24%20PM.png)
+
+## Control (Personal)
+
+![](images/Screen%20Shot%202022-10-18%20at%207.05.39%20PM.png)
+
+## Trait-to-Identity Network
+
+# Propagation to Connected Identities
+
+## Identities are evaluated more positively if overlapping with identity, but not if identity was stigmatized
+
+```{r}
+idShort1$SE.Diff <- idShort1$SE.T2 - idShort1$SE.T1
+idShort1$MGIS.Diff <- (idShort1$MGIS.T2-idShort1$MGIS.T1)
+pos.prop <- lmer(scale(pos) ~ Condition * idCommRaceN + ( idCommRaceN | subID ) + ( 1 | idcode), data=idShort1)
+tidy(pos.prop,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(pos.prop, c("idCommRaceN","Condition")) %>% plot(show.title=FALSE) 
+```
+
+## Identities are more strongly identified with if overlapping with affected racial identity
+
+```{r}
+streng.prop <- lmer(scale(streng) ~ Condition * idCommRaceN + ( idCommRaceN | subID ) + ( 1 | idcode), data=idShort1)
+tidy(streng.prop,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(streng.prop, c("idCommRaceN","Condition")) %>% plot(show.title=FALSE)
+```
+
+# Traits Connected to Stigmatized Identity
+
+------------------------------------------------------------------------
+
+## Connections to identity are more self-descriptive if feedback received
+
+```{r}
+connect1 <- lmer(scale(selfResp) ~ connect*Condition + scale(subTend) + scale(traitTend) + ( connect | subID ) + ( 1 | traits), data=RaceLong)
+tidy(connect1,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(connect1, c("connect","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa()
+```
+
+------------------------------------------------------------------------
+
+### Moderated by valence
+
+```{r}
+connect1.val <- lmer(scale(selfResp) ~ connect*Condition*valence + scale(subTend) + scale(traitTend) + ( connect + valence | subID ) + ( 1 | traits), data=RaceLong)
+tidy(connect1.val,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(connect1.val, c("connect","valence","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa()
+```
+
+### Moderated by strength of identification
+
+```{r}
+connect1.streng <- lmer(scale(selfResp) ~ connect*Condition*scale(streng) + scale(subTend) + scale(traitTend) + ( connect | subID ) + ( 1 | traits), data=RaceLong)
+tidy(connect1.streng,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(connect1.streng, c("streng","connect","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa()
+```
+
+## Traits Connected to Identities Farther from Impacted Identity Evaluated Less Self-Descriptively
+
+```{r}
+connect2 <- lmer(scale(selfResp) ~ idDistRaceN*connect*Condition + scale(subTend) + scale(traitTend) + ( connect + idDistRaceN | subID / id ) + ( 1 | traits), data=fullLong1)
+tidy(connect2,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(connect2, c("idDistRaceN","connect","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Distance from Racial Identity") + ylab("Self-Evaluation")
+```
+
+### Using Weighted Network (i.e., Similarity)
+
+```{r}
+connect3 <- lmer(scale(selfResp) ~ scale(idDistRaceNW)*connect*Condition + scale(subTend) + scale(traitTend) + ( connect + scale(idDistRaceNW) | subID / id ) + ( 1 | traits), data=fullLong1)
+tidy(connect3,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+```
+
+```{r}
+ggpredict(connect3, c("idDistRaceNW","connect","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Closeness to Racial Identity") + ylab("Self-Evaluation")
+```
+
+# Trait Similarity to Identity After Stigma
+
+------------------------------------------------------------------------
+
+## Proportion of Overlapping Traits and Identities Predicts Self-Evaluations More if Identity-Feedback Received
+
+```{r}
+sim.m1 <- lmer(scale(selfResp) ~ scale(IT.Sim)*Condition + ( scale(IT.Sim) | subID ) + (1 | traits), data=OrderRace)
+tidy(sim.m1,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(sim.m1, c("IT.Sim","Condition")) %>% plot(show.title=FALSE) 
+```
+
+------------------------------------------------------------------------
+
+### Moderated by strength of identification
+
+```{r}
+sim.m1.streng <- lmer(scale(selfResp) ~ scale(IT.Sim)*Condition*scale(streng) + ( scale(IT.Sim) | subID ) + (1 | traits), data=OrderRace)
+tidy(sim.m1.streng,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(sim.m1.streng, c("IT.Sim","Condition","streng")) %>% plot(show.title=FALSE) 
+```
+
+## Proportion of Overlapping Traits Predicts Self-Evaluations More if Identity-Feedback Received
+
+```{r}
+sim.m2 <- lmer(scale(selfResp) ~ scale(T.Sim)*Condition + ( scale(T.Sim) | subID ) + (1 | traits), data=OrderRace)
+tidy(sim.m2, conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(sim.m2, c("T.Sim","Condition")) %>% plot(show.title=FALSE) 
+```
+
+------------------------------------------------------------------------
+
+### Moderated by strength of identification
+
+```{r}
+sim.m2.streng <- lmer(scale(selfResp) ~ scale(T.Sim)*Condition*scale(streng) + ( scale(T.Sim) | subID ) + (1 | traits), data=OrderRace)
+tidy(sim.m2.streng,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(sim.m2.streng, c("T.Sim","Condition","streng")) %>% plot(show.title=FALSE) 
+```
+
+## Distance from Racial Identity Matters More for Self-Evaluations if Feedback Received
+
+```{r}
+dist.m1 <- lmer(scale(selfResp) ~ scale(order)*Condition + ( scale(order) | subID ) + (1 | traits), data=OrderRace )
+tidy(dist.m1,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(dist.m1, c("order","Condition")) %>% plot(show.title=FALSE) 
+```
+
+------------------------------------------------------------------------
+
+### Moderated by strength of identification
+
+```{r}
+dist.m1.streng <- lmer(scale(selfResp) ~ scale(order)*Condition*scale(streng) + ( scale(order) | subID ) + (1 | traits), data=OrderRace )
+tidy(dist.m1.streng,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(dist.m1.streng, c("order","Condition","streng")) %>% plot(show.title=FALSE) 
+```
+
+## Distance from identity matters more for traits connected to identities closer to impacted identity
+
+```{r}
+dist.m2 <- lmer(scale(selfResp) ~ scale(order)*Condition*scale(idDistRaceN) + ( scale(order) + scale(idDistRaceN) | subID / id ) + (1 | traits), data=orderDf1 )
+tidy(dist.m2,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(dist.m2, c("order","idDistRaceN","Condition")) %>% plot(show.title=FALSE) 
+```
+
+## Distance from identity matters more for traits connected to identities more similar to impacted identity
+
+```{r}
+dist.m3 <- lmer(scale(selfResp) ~ scale(order)*Condition*scale(idCommRaceN) + ( scale(order) + scale(idCommRaceN) | subID / id ) + (1 | traits), data=orderDf1 )
+tidy(dist.m3,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(dist.m3, c("order","idCommRaceN","Condition")) %>% plot(show.title=FALSE) 
+```
+
+# Racial vs. Non-Racial Identity for Feedback
+
+------------------------------------------------------------------------
+
+## As you get farther from the racial identity, connected traits become less self-descriptive.
+
+```{r}
+endorseprop <- lmer(scale(diff) ~ Condition * scale(idDistRaceN) + ( scale(idDistRaceN) | subID ) + ( 1 | idcode), data=summarized)
+tidy(endorseprop,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(endorseprop, c("idDistRaceN","Condition")) %>% plot(show.title=FALSE) 
+```
+
+------------------------------------------------------------------------
+
+### Moderated by strength of identification
+
+```{r}
+endorseprop.streng <- lmer(scale(diff) ~ Condition * scale(idDistRaceN) * scale(streng) + ( scale(idDistRaceN) + scale(streng) | subID ) + ( 1 | idcode), data=summarized)
+tidy(endorseprop.streng,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(endorseprop.streng, c("idDistRaceN","Condition", "streng")) %>% plot(show.title=FALSE) 
+```
+
+## Traits connected to racial identity are evaluated more self-descriptively that non-connected traits
+
+```{r}
+raceyn.conn <- lmer(scale(selfResp) ~ raceyn*connect*Condition + scale(subTend) + scale(traitTend) + ( connect + raceyn | subID ) + ( 1 | traits), data=fullLong1)
+tidy(endorseprop.streng,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+
+```
+
+------------------------------------------------------------------------
+
+```{r}
+ggpredict(raceyn.conn, c("Condition","raceyn","connect")) %>% plot(show.title=FALSE) 
+```
+
+# Pairwise Similarity
+
+## Pairs with racial identity are more associated with strength of identification
+
+```{r}
+sim.m1 <- lmer(scale(strengDist) ~ scale(idSim)*Condition*raceConn + ( scale(idSim) | subID ), data=idSim1)
+tidy(sim.m1,conf.int=TRUE,effects="fixed") %>% kbl() %>%
+  kable_paper("hover", full_width = T, fixed_thead = T, font_size = 12)
+
+```
+
+```{r}
+ggpredict(sim.m1, c("idSim","Condition","raceConn")) %>% plot(show.title=FALSE) 
+```

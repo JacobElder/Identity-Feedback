@@ -11,6 +11,8 @@ library(dplyr)
 library(ggpubr)
 library(grid)
 library(lmerTest)
+library(here)
+i_am("Identity-Feedback.Rproj")
 ```
 
 ```{r}
@@ -20,11 +22,21 @@ source_url("https://raw.githubusercontent.com/JacobElder/MiscellaneousR/master/p
 ```
 
 ```{r}
-fullLong1 <- data.table::fread("~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/id2traitDf.csv")
-orderDf1 <- data.table::fread( "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/orderDf.csv")
-idShort1 <- data.table::fread( "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/id2traitShort.csv")
-indDiff1 <- data.table::fread( "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/indDiff.csv")
-idSim1 <- data.table::fread( "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/identitySimDf.csv")
+# fullLong1 <- data.table::fread("~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/id2traitDf.csv")
+# orderDf1 <- data.table::fread( "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/orderDf.csv")
+# idShort1 <- data.table::fread( "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/id2traitShort.csv")
+# indDiff1 <- data.table::fread( "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/indDiff.csv")
+# idSim1 <- data.table::fread( "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/identitySimDf.csv")
+
+fullLong1 <- as.data.frame(arrow::read_parquet(here("Study 1","Data","id2traitDf.parquet")))
+orderDf1 <- as.data.frame(arrow::read_parquet(here("Study 1","Data","orderDf.parquet")))
+idShort1 <- as.data.frame(arrow::read_parquet(here("Study 1","Data","id2traitShort.parquet")))
+indDiff1 <- as.data.frame(arrow::read_parquet(here("Study 1","Data","indDiff.parquet")))
+idSim1 <-as.data.frame(arrow::read_parquet(here("Study 1","Data","identitySimDf.parquet")))
+
+
+fullLong1$subTend <- as.numeric(fullLong1$subTend)
+fullLong1$traitTend <- as.numeric(fullLong1$traitTend)
 ```
 
 ```{r}
@@ -62,7 +74,7 @@ RaceLong <- subset(fullLong1, idcode==1)
 # Do people self-endorse more for race connected traits?
 
 ```{r}
-connect1 <- lmer(scale(selfResp) ~ connect*Condition + scale(subTend) + scale(traitTend) + identity + ( connect | subID ) + ( 1 | traits), data=RaceLong)
+connect1 <- lmer(scale(selfResp) ~ connect*Condition + identity  + scale(subTend) + scale(traitTend) + ( connect | subID ) + ( 1 | traits), data=RaceLong)
 summary(connect1)
 connect1.plot <- ggpredict(connect1, c("Condition","connect")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity-Typicality") + ylab("Self-Evaluation")
 connect1.plot
@@ -82,24 +94,24 @@ connect1.plot
 ```{r}
 connect1 <- lmer(scale(selfResp) ~ Condition*valence + scale(subTend) + scale(traitTend) + ( valence | subID ) + ( 1 | traits), data=RaceLong[RaceLong$connect=="Yes",])
 summary(connect1)
-connect1.plot <- ggpredict(connect1, c("Condition","valence")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity-Typicality") + ylab("Self-Evaluation")
+connect1.plot <- ggpredict(connect1, c("Condition","valence")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Condition") + ylab("Self-Evaluation")
 connect1.plot
 ```
 
 ## Only looking at connected traits, moderated by valence and positivity of identity
 
 ```{r}
-connect1 <- lmer(scale(selfResp) ~ Condition*pos*valence + scale(subTend) + scale(traitTend) + ( pos + valence | subID ) + ( 1 | traits), data=RaceLong[RaceLong$connect=="Yes",])
+connect1 <- lmer(scale(selfResp) ~ Condition*scale(pos)*valence + scale(subTend) + scale(traitTend) + ( scale(pos) + valence | subID ) + ( 1 | traits), data=RaceLong[RaceLong$connect=="Yes",])
 summary(connect1)
-connect1.plot <- ggpredict(connect1, c("Condition","pos","valence")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity-Typicality") + ylab("Self-Evaluation")
+connect1.plot <- ggpredict(connect1, c("pos","Condition","valence")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity-Typicality") + ylab("Self-Evaluation")
 connect1.plot
 ```
 ## Only looking at connected traits, moderated by valence and strength of identification
 
 ```{r}
-connect1 <- lmer(scale(selfResp) ~ Condition*streng*valence + scale(subTend) + scale(traitTend) + ( streng + valence | subID ) + ( 1 | traits), data=RaceLong[RaceLong$connect=="Yes",])
+connect1 <- lmer(scale(selfResp) ~ Condition*scale(streng)*valence + scale(subTend) + scale(traitTend) + ( scale(streng) + valence | subID ) + ( 1 | traits), data=RaceLong[RaceLong$connect=="Yes",])
 summary(connect1)
-connect1.plot <- ggpredict(connect1, c("Condition","streng","valence")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity-Typicality") + ylab("Self-Evaluation")
+connect1.plot <- ggpredict(connect1, c("streng","Condition","valence")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Strength of Identification") + ylab("Self-Evaluation")
 connect1.plot
 ```
 
@@ -108,21 +120,14 @@ connect1.plot
 ```{r}
 connectval1 <- lmer(scale(selfResp) ~ connect*Condition*valence + scale(subTend) + scale(traitTend) + ( connect + valence | subID ) + ( 1 | traits), data=RaceLong)
 summary(connectval1)
-connectval1.plot <- ggpredict(connectval1, c("valence","connect","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity-Typicality") + ylab("Self-Evaluation")
+connectval1.plot <- ggpredict(connectval1, c("connect","valence","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity Typicality") + ylab("Self-Evaluation")
 connectval1.plot
 ```
 
 ```{r}
-connect1 <- lmer(scale(selfResp) ~ as.factor(connect)*as.factor(Condition)*overlap_norm + scale(subTend) + scale(traitTend) + ( connect | subID ) + ( 1 | traits), data=fullLong1)
+connect1 <- lmer(scale(selfResp) ~ idDistRaceN*connect*Condition + scale(subTend) + scale(traitTend) + ( connect + idDistRaceN | subID / id ) + ( 1 | traits), data=fullLong1)
 summary(connect1)
-connect1.plot <- ggpredict(connect1, c("Condition","connect","overlap_norm")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity-Typicality") + ylab("Self-Evaluation")
-connect1.plot
-```
-
-```{r}
-connect1 <- lmer(scale(selfResp) ~ idDistRaceNW*connect*Condition + scale(subTend) + scale(traitTend) + ( connect | subID ) + ( 1 | traits), data=fullLong1)
-summary(connect1)
-connect1.plot <- ggpredict(connect1, c("Condition","connect","idDistRaceNW")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity-Typicality") + ylab("Self-Evaluation")
+connect1.plot <- ggpredict(connect1, c("idDistRaceN","connect","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Distance from Racial Identity") + ylab("Self-Evaluation")
 connect1.plot
 ```
 
@@ -172,40 +177,46 @@ summary(m)
 # Does negative feedback propagate to influence perceived positivity of connected identities?
 
 ```{r}
-connect2 <- lmer(scale(pos) ~ Condition * idDistRaceNW + ( idDistRaceNW | subID ) + ( 1 | idcode), data=idShort1)
+connect2 <- lmer(scale(pos) ~ Condition * idCommRaceN + ( idCommRaceN | subID ) + ( 1 | idcode), data=idShort1)
 summary(connect2)
-ggpredict(connect2, c("idDistRaceNW","Condition")) %>% plot(show.title=FALSE) 
+ggpredict(connect2, c("idCommRaceN","Condition")) %>% plot(show.title=FALSE) 
 
-connect2 <- lmer(scale(stig) ~ Condition * idDistRaceNW + ( idDistRaceNW | subID ) + ( 1 | idcode), data=idShort1)
+connect2 <- lmer(scale(stig) ~ Condition * idCommRaceN + ( idCommRaceN | subID ) + ( 1 | idcode), data=idShort1)
 summary(connect2)
-ggpredict(connect2, c("idDistRaceNW","Condition")) %>% plot(show.title=FALSE)
+ggpredict(connect2, c("idCommRaceN","Condition")) %>% plot(show.title=FALSE)
+
+connect2 <- lmer(scale(streng) ~ Condition * idCommRaceN + ( idCommRaceN | subID ) + ( 1 | idcode), data=idShort1)
+summary(connect2)
+ggpredict(connect2, c("idCommRaceN","Condition")) %>% plot(show.title=FALSE)
 ```
 
 ## Exploratory Identity Propagation Models
 
 ```{r}
-connect2 <- lmer(scale(streng) ~ Condition * idDistRaceNW + ( idDistRaceNW | subID ) + ( 1 | idcode), data=idShort1)
+connect2 <- lmer(scale(streng) ~ Condition * idDistRaceN + ( idDistRaceN | subID ) + ( 1 | idcode), data=idShort1)
 summary(connect2)
-ggpredict(connect2, c("idDistRaceNW","Condition")) %>% plot(show.title=FALSE) 
+ggpredict(connect2, c("idDistRaceN","Condition")) %>% plot(show.title=FALSE) 
 
-connect2 <- lmer(scale(sizeS) ~ Condition * idDistRaceNW + ( idDistRaceNW | subID ) + ( 1 | idcode), data=idShort1)
+connect2 <- lmer(scale(sizeS) ~ Condition * idDistRaceN + ( idDistRaceN | subID ) + ( 1 | idcode), data=idShort1)
 summary(connect2)
-ggpredict(connect2, c("idDistRaceNW","Condition")) %>% plot(show.title=FALSE) 
+ggpredict(connect2, c("idDistRaceN","Condition")) %>% plot(show.title=FALSE) 
 
-connect2 <- lmer(scale(sizeU) ~ Condition * idDistRaceNW + ( idDistRaceNW | subID ) + ( 1 | idcode), data=idShort1)
+connect2 <- lmer(scale(sizeU) ~ Condition * idDistRaceN + ( idDistRaceN | subID ) + ( 1 | idcode), data=idShort1)
 summary(connect2)
-ggpredict(connect2, c("idDistRaceNW","Condition")) %>% plot(show.title=FALSE) 
+ggpredict(connect2, c("idDistRaceN","Condition")) %>% plot(show.title=FALSE) 
 
-connect2 <- lmer(scale(inclus) ~ Condition * idDistRaceNW + ( idDistRaceNW | subID ) + ( 1 | idcode), data=idShort1)
+connect2 <- lmer(scale(inclus) ~ Condition * idDistRaceN + ( idDistRaceN | subID ) + ( 1 | idcode), data=idShort1)
 summary(connect2)
-ggpredict(connect2, c("idDistRaceNW","Condition")) %>% plot(show.title=FALSE) 
+ggpredict(connect2, c("idDistRaceN","Condition")) %>% plot(show.title=FALSE) 
 
-connect2 <- lmer(scale(differ) ~ Condition * idDistRaceNW + ( idDistRaceNW | subID ) + ( 1 | idcode), data=idShort1)
+connect2 <- lmer(scale(differ) ~ Condition * idDistRaceN + ( idDistRaceN | subID ) + ( 1 | idcode), data=idShort1)
 summary(connect2)
-ggpredict(connect2, c("idDistRaceNW","Condition")) %>% plot(show.title=FALSE) 
+ggpredict(connect2, c("idDistRaceN","Condition")) %>% plot(show.title=FALSE) 
 ```
 
 # Does feedback propagate to influence self-descriptiveness for identity connected vs. non identity connected traits?
+
+Self-descriptiveness of connected relative to non-connected traits... As you get farther from the racial identity, connected traits become less self-descriptive.
 
 ```{r}
 fullLong1$connectn <- as.numeric(fullLong1$connect)-1
@@ -215,20 +226,27 @@ summarized<-tidyr::pivot_wider(summarized, id_cols=c("subID","idcode"), values_f
 
 shortened <- fullLong1[match(unique(fullLong1$subID), fullLong1$subID),]
 
-summarized <- merge(summarized, idShort, by=c("subID","idcode"))
+summarized <- merge(summarized, idShort1, by=c("subID","idcode"))
 
 summarized$diff <- summarized$Yes-summarized$No
 
-endorseprop <- lmer(scale(diff) ~ Condition * idDistRaceNW + ( idDistRaceNW | subID ) + ( 1 | idcode), data=summarized)
+endorseprop <- lmer(scale(diff) ~ Condition * idDistRaceN + ( idDistRaceN | subID ) + ( 1 | idcode), data=summarized)
 summary(endorseprop)
-ggpredict(endorseprop, c("idDistRaceNW","Condition")) %>% plot(show.title=FALSE) 
+ggpredict(endorseprop, c("idDistRaceN","Condition")) %>% plot(show.title=FALSE) 
+
+
+endorseprop <- lmer(scale(diff) ~ Condition * scale(idCommRaceN) + ( scale(idCommRaceN) | subID ) + ( 1 | idcode), data=summarized)
+summary(endorseprop)
+ggpredict(endorseprop, c("idDistRaceN","Condition")) %>% plot(show.title=FALSE) 
 ```
 
 # Does identity spillover to shape self-descriptiveness for connected identities and traits?
 
+Traits connected to racial identity are evaluated more self-descriptively that non-connected traits.
+
 ```{r}
 fullLong1$raceyn <- ifelse(fullLong1$idcode==1, "Racial", "Not")
-connect1 <- lmer(scale(selfResp) ~ raceyn*connect*Condition + scale(subTend) + scale(traitTend) + ( connect | subID ) + ( 1 | traits), data=fullLong1)
+connect1 <- lmer(scale(selfResp) ~ raceyn*connect*Condition + scale(subTend) + scale(traitTend) + ( connect + raceyn | subID ) + ( 1 | traits), data=fullLong1)
 summary(connect1)
 ggpredict(connect1, c("Condition","raceyn","connect")) %>% plot(show.title=FALSE) 
 ```
@@ -239,17 +257,19 @@ ggpredict(connect1, c("Condition","raceyn","connect")) %>% plot(show.title=FALSE
 
 # Feedback influences self-views for identities more overlapping with affected racial identity?
 
+Self-evaluations for identities farther from 
+
 ```{r}
 connectedLong <- subset(fullLong1, connect == "Yes")
-connect1 <- lmer(scale(selfResp) ~ scale(idDistRaceNW)*Condition + scale(subTend) + scale(traitTend) + ( scale(idDistRaceNW)  | subID ) + ( 1 | traits), data=connectedLong)
+connect1 <- lmer(scale(selfResp) ~ scale(idDistRaceN)*Condition + scale(subTend) + scale(traitTend) + ( scale(idDistRaceNW)  | subID ) + ( 1 | traits), data=connectedLong)
 summary(connect1)
-ggpredict(connect1, c("idDistRaceNW","Condition")) %>% plot(show.title=FALSE) 
+ggpredict(connect1, c("idDistRaceN","Condition")) %>% plot(show.title=FALSE) 
 ```
 
 # Depends on valence?
 
 ```{r}
-connect1 <- lmer(scale(selfResp) ~ scale(idDistRaceNW)*Condition*valence + scale(subTend) + scale(traitTend) + ( valence + scale(idDistRaceNW)  | subID ) + ( 1 | traits), data=connectedLong)
+connect1 <- lmer(scale(selfResp) ~ scale(idDistRaceN)*Condition*valence + scale(subTend) + scale(traitTend) + ( valence + scale(idDistRaceNW)  | subID ) + ( 1 | traits), data=connectedLong)
 summary(connect1)
 ggpredict(connect1, c("idDistRaceNW","Condition","valence")) %>% plot(show.title=FALSE) 
 ```
@@ -265,7 +285,7 @@ ggpredict(connect1, c("idDistRaceNW","Condition","overlap_norm")) %>% plot(show.
 ## Depends on strength of perceived positivity of identity?
 
 ```{r}
-connect1 <- lmer(scale(selfResp) ~ scale(idDistRaceNW)*Condition*pos + scale(subTend) + scale(traitTend) + ( scale(idDistRaceNW)  | subID ) + ( 1 | traits), data=connectedLong)
+connect1 <- lmer(scale(selfResp) ~ scale(idDistRaceN)*Condition*pos + scale(subTend) + scale(traitTend) + ( scale(idDistRaceNW)  | subID ) + ( 1 | traits), data=connectedLong)
 summary(connect1)
 ggpredict(connect1, c("idDistRaceNW","Condition","overlap_norm")) %>% plot(show.title=FALSE) 
 ```
@@ -274,4 +294,32 @@ ggpredict(connect1, c("idDistRaceNW","Condition","overlap_norm")) %>% plot(show.
 connect1 <- lmer(scale(selfResp) ~ scale(idDistRaceN)*Condition*valence + scale(subTend) + scale(traitTend) + ( scale(idDistRaceN) + valence  | subID ) + ( 1 | traits), data=connectedLong)
 summary(connect1)
 ```
+
+# Similarity Analyses
+
+```{r}
+sim.m1 <- lmer(scale(strengDist) ~ scale(idSim)*Condition + ( scale(idSim) | subID ), data=idSim1)
+summary(sim.m1)
+```
+
+```{r}
+sim.m1 <- lmer(scale(strengDist) ~ scale(idSim)*Condition*raceConn + ( scale(idSim) | subID ), data=idSim1)
+summary(sim.m1)
+ggpredict(sim.m1, c("idSim","Condition","raceConn")) %>% plot(show.title=FALSE) 
+```
+
+$
+
+```{r}
+dist.m1 <- lmer(scale(selfResp) ~ scale(order)*Condition + ( scale(order) | subID ) + (1 | traits), data=orderDf1)
+summary(dist.m1)
+```
+
+```{r}
+raceOrder <- subset(orderDf1, idq == identity)
+dist.m1 <- lmer(scale(selfResp) ~ scale(IT.Sim)*Condition + ( scale(order) | subID ) + (1 | traits), data=raceOrder)
+summary(dist.m1)
+ggpredict(dist.m1, c("IT.Sim","Condition")) %>% plot(show.title=FALSE) 
+```
+
 

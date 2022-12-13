@@ -7,6 +7,8 @@ output: html_notebook
 library(igraph)
 library(tidyverse)
 library(careless)
+library(here)
+here::i_am("Identity-Feedback.Rproj")
 ```
 
 ```{r}
@@ -66,6 +68,7 @@ rawSec <- rawSec[!badRows,]
 
 rawFirst <- rawFirst[rawFirst$id!=47001,]
 rawSec <- rawSec[rawSec$id!=47001,]
+rawSec <- rawSec[rawSec$id!=60882,] # somehow 60882 exists for part 2 but not part 1, breaks script if I keep
 
 rawSec$remove <- ifelse(rawSec$Serious1 < 5 | rawSec$Serious2 < 5 | rawSec$Usable == 2 | rawSec$Off7 == 3, 1, 0)
 rawSec <- rawSec[rawSec$remove!=1,]
@@ -162,7 +165,7 @@ for(n in 1:nrow(rawFirst)){
     # populate 1s for select identities in row
     subMat[c,as.numeric(unlist(selectWord))] <- 1 # Unweighted matrix
     diag(subMat) <- 0 # Set diagonal to 0s if participants nominated any self-connections
-    subMatW[c,as.numeric(unlist(selectWord))]  <- (rawFirst[n,paste0("I",c,"_Sims_",as.numeric(unlist(selectWord) ))] ) # Weighted matrix
+    subMatW[c,as.numeric(unlist(selectWord))]  <- as.numeric(rawFirst[n,paste0("I",c,"_Sims_",as.numeric(unlist(selectWord) ))] ) / 11 # Weighted matrix
     # if participant didn't indicate weight, replace with 0
     subMatW[is.na(subMatW)] <- 0
     # Flipped direction of fraction so more overlap is closer between identities
@@ -182,7 +185,7 @@ for(n in 1:nrow(rawFirst)){
   assign(paste0("subIMat.",i),subMat)
   assign(paste0("subIGraph.",i),subGraph)
   
-  assign(paste0(".",i),subMatW)
+  assign(paste0("subIMatW.",i),subMatW)
   assign(paste0("subIGraphW.",i),subGraphW)
 }
 
@@ -325,6 +328,8 @@ for(n in 1:nrow(rawSec)){
     I2Iindeg <- degree(curGraph, mode="in")
     # identity to identity, all
     I2Ideg <- degree(curGraph, mode="all")
+    # identity strength
+    I2Istrength <- strength(curGraphW)
     # identity to identity, local trans
     I2Itrans <- transitivity(curGraph, "localundirected")
     # identity to identity, betweenness
@@ -392,10 +397,12 @@ for(n in 1:nrow(rawSec)){
     idDistRaceM <- mean(distanceMat[1,],na.rm=T)
     
     distanceMat <- distances(curGraphW)
+    distanceMat <- 1 - distanceMat/11
     distanceMat[is.infinite(distanceMat)] <- NA
     # nodal distance of identity network (weighted)
     idDistNodW <- rowMeans(distanceMat, na.rm=T)
-    # mean distance from race (as feedback targeted at race)
+    # each node's distance from race (as feedback targeted at race)
+    #idDistRaceNW <- distanceMat[1,]
     idDistRaceNW <- distanceMat[1,]
     # global distance of identity network (weighted)
     idDistGlobW <- distanceMat %>% .[lower.tri(.)] %>% mean(na.rm=T)
@@ -611,17 +618,19 @@ for(n in 1:length(uIds)){
 }
 sumNomsAcrossTraits<-rowMeans(sumNomsAcrossTraits)
 
-tendSubdDf <- as.data.frame(
+tendSubDf <- as.data.frame(
   cbind(subID = uIds, 
         subTend = sumNomsAcrossIdentities
 )
 )
+tendSubDf$subTend <- as.numeric(tendSubDf$subTend)
 
 tendTraitDf <- as.data.frame(
   cbind(traits = c(posTraits$trait, negTraits$trait), 
         traitTend = sumNomsAcrossTraits
 )
 )
+tendTraitDf$traitTend <- as.numeric(tendTraitDf$traitTend)
 ```
 
 
@@ -1140,20 +1149,20 @@ psych::alpha(indDiffT2[,Indcols])
 # Self-Complexity Scores
 
 ```{r}
-#devtools::install_github("edinkasia/self-complexity-package")
-library(selfcomplexity)
-selfcomplexityDf <- traitIdDf1st %>%
-  group_by(subID, id) %>%
-  summarize(att = paste(traits, collapse = ','))
-
-HScores<-calculate_H(data=as.tibble(selfcomplexityDf),att_column = "att", id_column = "subID", vector = c(posTraits$trait,negTraits$trait))
-
-OverlapScores<-calculate_overlap(data=as.tibble(selfcomplexityDf), att_column="att", subtype_column = "id", id_column = "subID")
-
-PhiScores<-calculate_phi(data=as.tibble(selfcomplexityDf),att_column = "att", id_column = "subID", pos_att_vector = posTraits$trait, neg_att_vector =  negTraits$trait)
-
-SCdf <- merge(HScores, OverlapScores, by = "subID")
-SCdf <- merge(SCdf, PhiScores, by = "subID")
+# devtools::install_github("edinkasia/self-complexity-package")
+# library(selfcomplexity)
+# selfcomplexityDf <- traitIdDf1st %>%
+#   group_by(subID, id) %>%
+#   summarize(att = paste(traits, collapse = ','))
+# 
+# HScores<-calculate_H(data=as.tibble(selfcomplexityDf),att_column = "att", id_column = "subID", vector = c(posTraits$trait,negTraits$trait))
+# 
+# OverlapScores<-calculate_overlap(data=as.tibble(selfcomplexityDf), att_column="att", subtype_column = "id", id_column = "subID")
+# 
+# PhiScores<-calculate_phi(data=as.tibble(selfcomplexityDf),att_column = "att", id_column = "subID", pos_att_vector = posTraits$trait, neg_att_vector =  negTraits$trait)
+# 
+# SCdf <- merge(HScores, OverlapScores, by = "subID")
+# SCdf <- merge(SCdf, PhiScores, by = "subID")
 ```
 
 
@@ -1161,7 +1170,7 @@ SCdf <- merge(SCdf, PhiScores, by = "subID")
 indDiffT2shorten <- indDiffT2 %>% select(subID, Inter, Ind, CESD, SWLS, SCC, DS, IdImp, PubCSE, PrivCSE, MemSE, PANAS_Pos.T2, PANAS_Neg.T2, SE.T2, SCS.T2, intersect(starts_with("MGIS_"),ends_with(".T2")), MGIS.T2, identity, Condition)
 indDiffT1shorten <- indDiffT1  %>% select(subID, Educ, Status, PANAS_Pos.T1, PANAS_Neg.T1, SE.T1, SCS.T1, intersect(starts_with("MGIS_"),ends_with(".T2")), MGIS.T1)
 indDiff <- merge(indDiffT1shorten, indDiffT2shorten, by = "subID")
-indDiff <- merge(indDiff, SCdf, by = "subID")
+#indDiff <- merge(indDiff, SCdf, by = "subID")
 fullLong <- merge(fullLong, globalIDDf, by = "subID", all.x = T)
 ```
 
@@ -1217,11 +1226,12 @@ colnames(orderDf) <- c("traits","valence","idq","idcode","subID","selfResp","ord
 orderDf <- as.data.frame(orderDf)
 
 
-orderDf <- orderDf[order(orderDf$subID, orderDf$order),]
-orderDf <- merge(orderDf, qcidlong, by = c("subID","idcode","idq"))
-orderDf <- merge(orderDf, idLong, by = c("subID","idcode"))
-orderDf <- merge(orderDf, indDiff, by = "subID")
-orderDf <- merge(orderDf, globalIDDf, by = c("subID"), all.x = T, all.y=T)
+orderDf2 <- orderDf[order(orderDf$subID, orderDf$order),]
+orderDf3 <- merge(orderDf2, qcidlong, by = c("subID","idcode","idq"))
+orderDf4 <- merge(orderDf3, idLong, by = c("subID","idcode"))
+orderDf5 <- merge(orderDf4, indDiff, by = "subID")
+orderDf6 <- merge(orderDf5, globalIDDf, by = c("subID"), all.x = T, all.y=T)
+orderDf <- orderDf6
 
 orderDf$order[is.infinite(orderDf$order)] <- NA
 orderDf$orderO[is.infinite(orderDf$orderO)] <- NA
@@ -1299,6 +1309,12 @@ for(i in uIds){
     #   break
     # }
     
+    raceConnect = sim
+    raceConnect[] <- 0L
+    raceConnect[1,] <- 1
+    raceConnect[,1] <- 1
+    raceConnectVect=raceConnect[lower.tri(raceConnect)==T]
+    
     # Dice Similarity in All Shared Traits
     simIT=similarity.dice(curGraphItoT)
     simIT=simIT[1:numIdentities,1:numIdentities]
@@ -1358,7 +1374,7 @@ for(i in uIds){
     # }
 
     
-    curSimDf <- cbind(subID = rep(i,length(simVect)), pair = 1:length(simVect), idSim = simVect, idtSim = simVectIT, idtpSim = simVectIT.p, idtnSim = simVectIT.n, posDist = posVect, strengDist = strengVect, stigDist = stigVect, sizeSDist = sizeSVector, sizeUDist = sizeUVector, inclusDist = inclusVector, differDist = differVector)
+    curSimDf <- cbind(subID = rep(i,length(simVect)), pair = 1:length(simVect), idSim = simVect, idtSim = simVectIT, idtpSim = simVectIT.p, idtnSim = simVectIT.n, posDist = posVect, strengDist = strengVect, stigDist = stigVect, sizeSDist = sizeSVector, sizeUDist = sizeUVector, inclusDist = inclusVector, differDist = differVector, raceConn = raceConnectVect)
     
     fullSimDf <- rbind(fullSimDf, curSimDf)
     
@@ -1411,11 +1427,11 @@ summarized <- Rmisc::summarySE(data=idLong, measurevar = "streng", groupvars = c
 ```
 
 ```{r}
-veryLong <- merge(veryLong, tendSubdDf, by = "subID", all.x=T)
-orderDf <- merge(orderDf, tendSubdDf, by = "subID", all.x=T)
-idShort <- merge(idShort, tendSubdDf, by = "subID", all.x=T)
-indDiff <- merge(indDiff, tendSubdDf, by = "subID", all.x=T)
-fullSimDf <- merge(fullSimDf, tendSubdDf, by = "subID", all.x=T)
+veryLong <- merge(veryLong, tendSubDf, by = "subID", all.x=T)
+orderDf <- merge(orderDf, tendSubDf, by = "subID", all.x=T)
+idShort <- merge(idShort, tendSubDf, by = "subID", all.x=T)
+indDiff <- merge(indDiff, tendSubDf, by = "subID", all.x=T)
+fullSimDf <- merge(fullSimDf, tendSubDf, by = "subID", all.x=T)
 
 
 veryLong <- merge(veryLong, tendTraitDf, by = "traits", all.x=T)
@@ -1442,19 +1458,28 @@ orderDf <- merge(orderDf, tendTraitDf, by = "traits", all.x=T)
 
 
 ```{r}
-#write.csv(fullLong, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/id2traitDf.csv", row.names = F)
-write.csv(demos, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/demos.csv", row.names = F)
-write.csv(veryLong, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/id2traitDf.csv", row.names = F)
-write.csv(orderDf, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/orderDf.csv", row.names = F)
-write.csv(idShort, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/id2traitShort.csv", row.names = F)
-write.csv(indDiff, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/indDiff.csv", row.names = F)
-write.csv(fullSimDf, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/identitySimDf.csv", row.names = F)
-write.csv(wideId, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/idWide.csv", row.names = F)
+# write.csv(demos, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/demos.csv")
+# write.csv(veryLong, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/id2traitDf.csv")
+# write.csv(orderDf, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/orderDf.csv")
+# write.csv(idShort, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/id2traitShort.csv")
+# write.csv(indDiff, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/indDiff.csv")
+# write.csv(fullSimDf, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/identitySimDf.csv")
+# write.csv(wideId, "~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/idWide.csv")
+
+
+
 save.image("~/Google Drive/Volumes/Research Project/Identity Feedback/Study 1/Data/Output/id2traitsworkspace.RData")
 ```
 
-
-
+```{r}
+arrow::write_parquet(demos, here("Study 1","Data","demos.parquet"))
+arrow::write_parquet(veryLong, here("Study 1","Data","id2traitDf.parquet"))
+arrow::write_parquet(orderDf, here("Study 1","Data","orderDf.parquet"))
+arrow::write_parquet(idShort, here("Study 1","Data","id2traitShort.parquet"))
+arrow::write_parquet(indDiff, here("Study 1","Data","indDiff.parquet"))
+arrow::write_parquet(fullSimDf, here("Study 1","Data","identitySimDf.parquet"))
+arrow::write_parquet(wideId, here("Study 1","Data","idWide.parquet"))
+```
 
 
 
