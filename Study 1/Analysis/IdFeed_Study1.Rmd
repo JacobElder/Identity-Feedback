@@ -40,21 +40,23 @@ fullLong1$traitTend <- as.numeric(fullLong1$traitTend)
 ```
 
 ```{r}
+fullLong1$Condition <- as.factor(fullLong1$Condition)
+
+# create factor for race or not
+fullLong1$RaceNo <- as.factor(ifelse(fullLong1$idcode==1, "Race", "notRace"))
+
 # subset data for traits to only appear once per subject
 
 traitsPerS1 <- fullLong1 %>% distinct(subID, Idx, .keep_all = TRUE)
 #traitsPerS2 <- fullLong2 %>% distinct(subID, Idx, .keep_all = TRUE)
-
-# subset data for only connected traits to appear per subject
-
-connectDf1 <- fullLong1 %>% filter(connect==1)
-#connectDf2 <- fullLong2 %>% filter(connect==1)
 
 # convert to factors
 
 fullLong1$connect <- as.factor(fullLong1$connect)
 levels(fullLong1$connect) <- list(No  = "0", Yes = "1")
 
+orderDf1$Condition <- as.factor(orderDf1$Condition)
+levels(orderDf1$Condition) <- list(Control = "0", Feedback = "1")
 fullLong1$Condition <- as.factor(fullLong1$Condition)
 levels(fullLong1$Condition) <- list(Control = "0", Feedback = "1")
 idShort1$Condition <- as.factor(idShort1$Condition)
@@ -69,44 +71,285 @@ idShort1$pndiff <- idShort1$pI2Tdeg - idShort1$nI2Tdeg
 #idShort2$pndiff <- idShort2$pI2Tdeg - idShort2$nI2Tdeg
 
 RaceLong <- subset(fullLong1, idcode==1)
+
+RaceOrder <- subset(orderDf1, idcode==1)
+
+# subset data for only connected traits to appear per subject
+
+connectDf1 <- fullLong1 %>% filter(connect=="Yes")
+#connectDf2 <- fullLong2 %>% filter(connect==1)
 ```
 
-# Do people self-endorse more for race connected traits?
+```{r}
+plotDf <- Rmisc::summarySE(data=fullLong1, groupvars=c("subID","connect","RaceNo","Condition"), measurevar="selfResp",na.r=T)
+ggplot(data=plotDf, aes(x=connect, y=selfResp, color= as.factor(RaceNo), fill=as.factor(RaceNo) )) + geom_bar(stat="identity", position=position_dodge()) 
+
+ggplot(plotDf, aes(RaceNo, selfResp, color=connect, fill = connect)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .7, .width = 0, justification = -.2, point_colour = NA, alpha = .3) +
+  geom_boxplot(width = .2, outlier.shape = NA) + 
+  geom_jitter(width = .05, alpha = .3) + labs(y="Proportion of Desirable Choices",x="Trial Type") + jtools::theme_apa() +
+  facet_wrap(~Condition)# + 
+  scale_color_manual(labels = c("Congruent", "Incongruent"), values = wes_palette("Chevalier1")) +
+  scale_fill_manual(labels = c("Congruent", "Incongruent"), values = wes_palette("Chevalier1"))
+```
+
+
+# All traits
+
+## Does an identity's distance from the impacted-racial identity relate to how self-descriptive the identity-connected traits is?
+
+Identity-connected traits that are closer to impacted racial identity are evaluated more self-descriptively in feedback condition, while in control condition, identity-connected traits that are farther from impacted racial identity are evaluated more self-descriptively.
+
+```{r}
+propag.UW1 <- lmer(scale(selfResp) ~ scale(idDistRaceN)*connect*Condition + scale(subTend) + scale(traitTend) + ( connect + scale(idDistRaceN) | subID / id ) + ( 1 | traits), data=fullLong1)
+summary(propag.UW1)
+```
+
+Visualization
+
+```{r}
+m <- lmer( selfResp ~ idDistRaceN*connect*Condition + subTend + traitTend + ( connect + idDistRaceN | subID / id ) + ( 1 | traits), data=fullLong1)
+propag.UW1.plot <- ggpredict(m, c("idDistRaceN","connect","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Distance from Racial Identity") + ylab("Self-Evaluation")
+propag.UW1.plot
+```
+
+# How does stigma/stereotypes lead people to self-stereotype for more stereotype relevant traits?
+
+```{r}
+propag.Race.1 <- lmer(scale(selfResp) ~ scale(order)*Condition + ( scale(order) | subID ) + ( 1 | traits), data=RaceOrder)
+summary(propag.Race.1)
+ggpredict(propag.Race.1, c("order","Condition")) %>% plot()
+```
+Visualization
+
+```{r}
+m <- lmer(selfResp ~ order*Condition + ( order | subID ) + ( 1 | traits), data=RaceOrder)
+summary(m)
+ggpredict(m, c("order","Condition")) %>% plot(show.title = F) + jtools::theme_apa() + xlab("Trait Distance from Racial Identity") + ylab("Self-Evaluation")
+```
+
+
+```{r}
+propag.Race.1 <- lmer(scale(selfResp) ~ scale(T.Sim)*Condition + ( scale(T.Sim) | subID ) + ( 1 | traits), data=RaceOrder)
+summary(propag.Race.1)
+ggpredict(propag.Race.1, c("T.Sim","Condition")) %>% plot()
+```
+
+```{r}
+propag.Race.1 <- lmer(scale(selfResp) ~ scale(order)*Condition*valence + ( scale(order) | subID ) + ( 1 | traits), data=RaceOrder)
+summary(propag.Race.1)
+ggpredict(propag.Race.1, c("order","Condition")) %>% plot()
+```
+
+
+# How does stigma/stereotypes lead people to self-stereotype for more stereotype relevant traits? Particularly for strongly identified individuals?
+
+```{r}
+propag.Race.Id.1 <- lmer(scale(selfResp) ~ scale(order)*Condition*IdImp + idNum + ( scale(order) | subID ) + ( 1 | traits), data=RaceOrder)
+summary(propag.Race.Id.1)
+```
+
+Visualization
+
+```{r}
+m <- lmer(selfResp ~ order*Condition*IdImp + ( order | subID ) + ( 1 | traits), data=RaceOrder)
+summary(m)
+ggpredict(m, c("order","IdImp","Condition")) %>% plot(show.title = F) + jtools::theme_apa() + scale_color_discrete(labels = c("Low Identification", "Medium Identification", "High Identification")) + xlab("Trait Distance from Racial Identity") + ylab("Self-Evaluation")
+```
+
+```{r}
+propag.Race.1 <- lmer(scale(selfResp) ~ scale(order)*Condition + ( scale(order) + valence | subID ) + ( 1 | traits), data=RaceOrder)
+summary(propag.Race.1)
+ggpredict(propag.Race.1, c("order","valence","Condition")) %>% plot()
+```
+
+```{r}
+propag.Race.1 <- lmer(scale(selfResp) ~ scale(order)*Condition + ( scale(order) | subID ) + ( 1 | traits), data=RaceOrder)
+summary(propag.Race.1)
+ggpredict(propag.Race.1, c("order","Condition")) %>% plot()
+```
+
+
+
+## Does an identity's distance from the impacted-racial identity relate to how self-descriptive farther or closer traits are?
+
+Identity-connected traits that are closer to impacted racial identity are evaluated more self-descriptively in feedback condition, while in control condition, identity-connected traits that are farther from impacted racial identity are evaluated more self-descriptively.
+
+```{r}
+propag.UW2 <- lmer(scale(selfResp) ~ scale(idDistRaceN)*scale(order)*Condition + scale(subTend) + scale(traitTend) + ( scale(order) + scale(idDistRaceN) | subID / id ) + ( 1 | traits), data=orderDf1)
+summary(propag.UW2)
+```
+
+Visualization
+
+```{r}
+m <- lmer( selfResp ~ idDistRaceN*order*Condition + subTend + traitTend + ( order + idDistRaceN | subID / id ) + ( 1 | traits), data=orderDf1)
+propag.UW2.plot <- ggpredict(m, c("idDistRaceN","order","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Distance from Racial Identity") + ylab("Self-Evaluation")
+propag.UW2.plot
+```
+
+## Does an identity's distance from the impacted-racial identity relate to how self-descriptive identity-similar traits are?
+
+```{r}
+propag.UW3 <- lmer(scale(selfResp) ~ scale(idDistRaceN)*scale(T.Sim)*Condition + scale(subTend) + scale(traitTend) + ( scale(T.Sim) + scale(idDistRaceN) | subID / id ) + ( 1 | traits), data=orderDf1)
+summary(propag.UW3)
+```
+
+Visualization
+
+```{r}
+m <- lmer( selfResp ~ idDistRaceN*T.Sim*Condition + subTend + traitTend + ( T.Sim + idDistRaceN | subID / id ) + ( 1 | traits), data=orderDf1)
+propag.UW3.plot <- ggpredict(m, c("idDistRaceN","T.Sim","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Distance from Racial Identity") + ylab("Self-Evaluation")
+propag.UW3.plot
+```
+## Does an identity's similarity to the impacted-racial identity relate to how self-descriptive the identity-connected traits is?
+
+Traits that are more similar to the impacted racial identity are evaluated more self-descriptively.
+
+```{r}
+propag.W1 <- lmer(scale(selfResp) ~ scale(idDistRaceNW)*connect*Condition + scale(subTend) + scale(traitTend) + ( connect + scale(idDistRaceNW) | subID / id ) + ( 1 | traits), data=fullLong1)
+summary(propag.W1)
+```
+
+Visualization
+
+```{r}
+m <- lmer( selfResp ~ idDistRaceNW*connect*Condition + subTend + traitTend + ( connect + idDistRaceNW | subID / id ) + ( 1 | traits), data=fullLong1)
+propag.W1.plot <- ggpredict(m, c("idDistRaceNW","connect","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Similarity to Racial Identity") + ylab("Self-Evaluation")
+propag.W1.plot
+```
+
+
+## Does an identity's distance from the impacted-racial identity relate to how self-descriptive farther or closer traits are?
+
+Identity-connected traits that are closer to impacted racial identity are evaluated more self-descriptively in feedback condition, while in control condition, identity-connected traits that are farther from impacted racial identity are evaluated more self-descriptively.
+
+```{r}
+propag.W2 <- lmer(scale(selfResp) ~ scale(idDistRaceNW)*scale(order)*Condition + scale(subTend) + scale(traitTend) + ( scale(order) + scale(idDistRaceNW) | subID / id ) + ( 1 | traits), data=orderDf1)
+summary(propag.W2)
+```
+
+Visualization
+
+```{r}
+m <- lmer( selfResp ~ idDistRaceNW*order*Condition + subTend + traitTend + ( order + idDistRaceNW | subID / id ) + ( 1 | traits), data=orderDf1)
+propag.W2.plot <- ggpredict(propag.W2, c("idDistRaceNW","order","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity Similarity to Impacted Racial Identity") + ylab("Self-Evaluation")
+propag.W2.plot
+```
+
+## Does an identity's distance from the impacted-racial identity relate to how self-descriptive identity similar traits are?
+
+```{r}
+propag.W3 <- lmer(scale(selfResp) ~ scale(idDistRaceNW)*scale(T.Sim)*Condition + scale(subTend) + scale(traitTend) + ( scale(T.Sim) + scale(idDistRaceNW) | subID / id ) + ( 1 | traits), data=orderDf1)
+summary(propag.W3)
+```
+
+Visualization
+
+```{r}
+m <- lmer( selfResp ~ idDistRaceNW*T.Sim*Condition + subTend + traitTend + ( T.Sim + idDistRaceNW | subID / id ) + ( 1 | traits), data=orderDf1)
+propag.W3.plot <- ggpredict(m, c("idDistRaceNW","T.Sim","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity Similarity to Impacted Racial Identity") + ylab("Self-Evaluation")
+propag.W3.plot
+```
+
+# Connected Traits Only for Full Dataset
+
+## Are connected traits more affected for racial identity than non-racial identity by feedback?
+
+Small--
+
+```{r}
+connect1 <- lmer( scale(selfResp) ~ Condition*RaceNo  + scale(subTend) + scale(traitTend) + ( RaceNo | subID ) + ( 1 | traits), data=connectDf1)
+summary(connect1)
+connect1.plot <- ggpredict(connect1, c("Condition","RaceNo")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Condition") + ylab("Self-Evaluation")
+connect1.plot
+```
+
+## Are there valence-differences in how connected traits more affected for racial identity than non-racial identity by feedback?
+
+Nope
+
+```{r}
+connect1 <- lmer( scale(selfResp) ~ Condition*RaceNo*valence  + scale(subTend) + scale(traitTend) + ( RaceNo + valence | subID ) + ( 1 | traits), data=connectDf1)
+summary(connect1)
+connect1.plot <- ggpredict(connect1, c("Condition","RaceNo","valence")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Condition") + ylab("Self-Evaluation")
+connect1.plot
+```
+
+# Racial Identity Dataframe Only
+
+## Do people self-endorse more for race-connected traits due to feedback?
+
+nah
 
 ```{r}
 connect1 <- lmer(scale(selfResp) ~ connect*Condition + identity  + scale(subTend) + scale(traitTend) + ( connect | subID ) + ( 1 | traits), data=RaceLong)
 summary(connect1)
-connect1.plot <- ggpredict(connect1, c("Condition","connect")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity-Typicality") + ylab("Self-Evaluation")
+connect1.plot <- ggpredict(connect1, c("Condition","connect")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Condition") + ylab("Self-Evaluation")
 connect1.plot
 ```
-
-## Only looking at connected traits
 
 ```{r}
-connect1 <- lmer(scale(selfResp) ~ Condition + scale(subTend) + scale(traitTend) + ( 1 | subID ) + ( 1 | traits), data=RaceLong[RaceLong$connect=="Yes",])
+connect1 <- lmer(scale(selfResp) ~ connect*Condition*valence + identity  + scale(subTend) + scale(traitTend) + ( connect + valence | subID ) + ( 1 | traits), data=RaceLong)
 summary(connect1)
-connect1.plot <- ggpredict(connect1, c("Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity-Typicality") + ylab("Self-Evaluation")
+connect1.plot <- ggpredict(connect1, c("Condition","connect","valence")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Condition") + ylab("Self-Evaluation")
 connect1.plot
 ```
-
-## Only looking at connected traits, moderated by valence
 
 ```{r}
-connect1 <- lmer(scale(selfResp) ~ Condition*valence + scale(subTend) + scale(traitTend) + ( valence | subID ) + ( 1 | traits), data=RaceLong[RaceLong$connect=="Yes",])
+connect1 <- lmer(scale(selfResp) ~ scale(order)*Condition*valence + identity  + scale(subTend) + scale(traitTend) + ( scale(order) * valence | subID ) + ( 1 | traits), data=orderDf1[orderDf1$idcode==1,])
 summary(connect1)
-connect1.plot <- ggpredict(connect1, c("Condition","valence")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Condition") + ylab("Self-Evaluation")
+connect1.plot <- ggpredict(connect1, c("order","Condition","valence")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Distance from Racial Identity") + ylab("Self-Evaluation")
 connect1.plot
 ```
 
-## Only looking at connected traits, moderated by valence and positivity of identity
+## Do people self-endorse more for race connected traits, depending on valence?
+
+People are more self-descriptive on connected positive traits in feedback condition than control condition, while no such differences exist for negative traits.
+
+```{r}
+connect1.v <- lmer(scale(selfResp) ~ connect*Condition*valence + identity  + scale(subTend) + scale(traitTend) + ( connect + valence | subID ) + ( 1 | traits), data=RaceLong)
+summary(connect1.v)
+connect1.v.plot <- ggpredict(connect1.v, c("Condition","connect","valence")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Condition") + ylab("Self-Evaluation")
+connect1.v.plot
+```
+
+# Race-Connected Traits
+
+## Is there an effect of feedback on race-connected traits?
+
+Nah
+
+```{r}
+sconnect1 <- lmer(scale(selfResp) ~ Condition + scale(subTend) + scale(traitTend) + ( 1 | subID ) + ( 1 | traits), data=RaceLong[RaceLong$connect=="Yes",])
+summary(sconnect1)
+sconnect1.plot <- ggpredict(connect1, c("Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity-Typicality") + ylab("Self-Evaluation")
+sconnect1.plot
+```
+
+## Does the effect of condition on race-connected traits depend on valence?
+
+```{r}
+sconnect1.v <- lmer(scale(selfResp) ~ Condition*valence + scale(subTend) + scale(traitTend) + ( valence | subID ) + ( 1 | traits), data=RaceLong[RaceLong$connect=="Yes",])
+summary(sconnect1.v)
+sconnect1.v.plot <- ggpredict(connect1.v, c("Condition","valence")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity-Typicality") + ylab("Self-Evaluation")
+sconnect1.v.plot
+```
+
+## Does the effect of feedback on race-connected traits depend on valence and identity-positivity?
+
+People with more positively perceived racial identities self-enhance on racial-relevant traits more after feedback.
 
 ```{r}
 connect1 <- lmer(scale(selfResp) ~ Condition*scale(pos)*valence + scale(subTend) + scale(traitTend) + ( scale(pos) + valence | subID ) + ( 1 | traits), data=RaceLong[RaceLong$connect=="Yes",])
 summary(connect1)
-connect1.plot <- ggpredict(connect1, c("pos","Condition","valence")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity-Typicality") + ylab("Self-Evaluation")
+connect1.plot <- ggpredict(connect1, c("pos","Condition","valence")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity Positivity") + ylab("Self-Evaluation")
 connect1.plot
 ```
-## Only looking at connected traits, moderated by valence and strength of identification
+
+## Does the effect of feedback on race-connected traits depend on valence and strength of identification?
+
+nah
 
 ```{r}
 connect1 <- lmer(scale(selfResp) ~ Condition*scale(streng)*valence + scale(subTend) + scale(traitTend) + ( scale(streng) + valence | subID ) + ( 1 | traits), data=RaceLong[RaceLong$connect=="Yes",])
@@ -115,21 +358,11 @@ connect1.plot <- ggpredict(connect1, c("streng","Condition","valence")) %>% plot
 connect1.plot
 ```
 
-### Does it depend on valence?
-
 ```{r}
-connectval1 <- lmer(scale(selfResp) ~ connect*Condition*valence + scale(subTend) + scale(traitTend) + ( connect + valence | subID ) + ( 1 | traits), data=RaceLong)
-summary(connectval1)
-connectval1.plot <- ggpredict(connectval1, c("connect","valence","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Identity Typicality") + ylab("Self-Evaluation")
-connectval1.plot
+m <- lmer(scale(pos) ~ scale(idDistRaceNW) * Condition + ( scale(idDistRaceNW) | subID), data=idShort1)
+summary(m)
 ```
 
-```{r}
-connect1 <- lmer(scale(selfResp) ~ idDistRaceN*connect*Condition + scale(subTend) + scale(traitTend) + ( connect + idDistRaceN | subID / id ) + ( 1 | traits), data=fullLong1)
-summary(connect1)
-connect1.plot <- ggpredict(connect1, c("idDistRaceN","connect","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Distance from Racial Identity") + ylab("Self-Evaluation")
-connect1.plot
-```
 
 # Self-endorsing identity-typical traits leads to greater identification/perceived positivity?
 
@@ -185,10 +418,40 @@ connect2 <- lmer(scale(stig) ~ Condition * idCommRaceN + ( idCommRaceN | subID )
 summary(connect2)
 ggpredict(connect2, c("idCommRaceN","Condition")) %>% plot(show.title=FALSE)
 
-connect2 <- lmer(scale(streng) ~ Condition * idCommRaceN + ( idCommRaceN | subID ) + ( 1 | idcode), data=idShort1)
+connect2 <- lmer(scale(streng) ~ Condition * scale(idCommRaceN) + idNum + ( scale(idCommRaceN) | subID ) + ( 1 | idcode), data=idShort1)
 summary(connect2)
-ggpredict(connect2, c("idCommRaceN","Condition")) %>% plot(show.title=FALSE)
+ggpredict(connect2, c("idCommRaceN","Condition")) %>% plot(show.title=FALSE)  + jtools::theme_apa() + xlab("Similarity to Racial Identity") + ylab("Strength of Identification")
 ```
+
+
+```{r}
+connect2 <- lmer(scale(pos) ~ Condition * traitCommRaceN + ( traitCommRaceN | subID ) + ( 1 | idcode), data=idShort1)
+summary(connect2)
+ggpredict(connect2, c("traitCommRaceN","Condition")) %>% plot(show.title=FALSE) 
+
+connect2 <- lmer(scale(stig) ~ Condition * traitCommRaceN + ( traitCommRaceN | subID ) + ( 1 | idcode), data=idShort1)
+summary(connect2)
+ggpredict(connect2, c("traitCommRaceN","Condition")) %>% plot(show.title=FALSE)
+
+connect2 <- lmer(scale(streng) ~ Condition * traitCommRaceN + idNum + ( traitCommRaceN | subID ) + ( 1 | idcode), data=idShort1)
+summary(connect2)
+ggpredict(connect2, c("traitCommRaceN","Condition")) %>% plot(show.title=FALSE) + jtools::theme_apa() + xlab("Distance from Racial Identity") + ylab("Self-Evaluation")
+```
+
+```{r}
+connect2 <- lmer(scale(pos) ~ Condition * idDistRaceNW + ( idDistRaceNW | subID ) + ( 1 | idcode), data=idShort1)
+summary(connect2)
+ggpredict(connect2, c("idDistRaceNW","Condition")) %>% plot(show.title=FALSE) 
+
+connect2 <- lmer(scale(stig) ~ Condition * idDistRaceNW + ( idDistRaceNW | subID ) + ( 1 | idcode), data=idShort1)
+summary(connect2)
+ggpredict(connect2, c("idDistRaceNW","Condition")) %>% plot(show.title=FALSE)
+
+connect2 <- lmer(scale(streng) ~ Condition * idDistRaceNW + ( idDistRaceNW | subID ) + ( 1 | idcode), data=idShort1)
+summary(connect2)
+ggpredict(connect2, c("idDistRaceNW","Condition")) %>% plot(show.title=FALSE)
+```
+
 
 ## Exploratory Identity Propagation Models
 
@@ -213,6 +476,40 @@ connect2 <- lmer(scale(differ) ~ Condition * idDistRaceN + ( idDistRaceN | subID
 summary(connect2)
 ggpredict(connect2, c("idDistRaceN","Condition")) %>% plot(show.title=FALSE) 
 ```
+
+```{r}
+m <- connect2 <- lmer(scale(streng) ~ Condition * traitCommRaceN + Condition * idCommRaceN + ( traitCommRaceN + idCommRaceN | subID ) + ( 1 | idcode), data=idShort1)
+summary(connect2)
+
+shortestDf <- idShort1[!duplicated(idShort1$subID),]
+m <- lm((SE.T2-SE.T1)~traitCommRaceM*Condition + idCommRaceM*Condition, data=shortestDf)
+summary(m)
+
+m <- lm(SE.T2~traitCommRaceM*Condition + SE.T1, data=shortestDf)
+summary(m)
+
+
+m <- lm(SCS.T2~traitCommRaceM*Condition + SCS.T1 + idNum, data=shortestDf)
+summary(m)
+ggpredict(m, c("traitCommRaceM","Condition")) %>% plot(show.title=FALSE) 
+
+m <- lm(MGIS.T2~traitCommRaceM*Condition + MGIS.T1 + idNum, data=shortestDf)
+summary(m)
+ggpredict(m, c("traitCommRaceM","Condition")) %>% plot(show.title=FALSE) 
+
+m <- lm(PANAS_Pos.T2~traitCommRaceM*Condition + PANAS_Pos.T1 + idNum, data=shortestDf)
+summary(m)
+ggpredict(m, c("traitCommRaceM","Condition")) %>% plot(show.title=FALSE) 
+
+m <- lm(PANAS_Neg.T2~traitCommRaceM*Condition + PANAS_Neg.T1 + idNum, data=shortestDf)
+summary(m)
+ggpredict(m, c("traitCommRaceM","Condition")) %>% plot(show.title=FALSE) 
+
+m <- lm(PANAS_Neg.T2~traitCommRaceM*Condition + PANAS_Neg.T1 + idNum, data=shortestDf)
+summary(m)
+ggpredict(m, c("traitCommRaceM","Condition")) %>% plot(show.title=FALSE) 
+```
+
 
 # Does feedback propagate to influence self-descriptiveness for identity connected vs. non identity connected traits?
 

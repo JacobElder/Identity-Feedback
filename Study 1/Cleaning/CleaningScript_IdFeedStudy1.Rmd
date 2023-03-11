@@ -378,7 +378,7 @@ for(n in 1:nrow(rawSec)){
     
     # global similarity of identity network
     idCommGlob <- (similarity(curGraph, method = "dice"))%>% .[lower.tri(.)] %>% mean()
-    # each node's distance from race
+    # each node's similarity to race: in terms of identities only
     idCommRaceN <-similarity(curGraph, method = "dice")[1,]
     # identity-node similarity
     idCommNod <- rowMeans(similarity(curGraph, method = "dice")[1:numIdentities,1:numIdentities])
@@ -452,8 +452,10 @@ for(n in 1:nrow(rawSec)){
     }else{
       traitCommNod <- mean(similarity(curGraph, method = "dice")[1:numIdentities,1:numIdentities])
     }
-    # mean similarity from race (as feedback targeted at race)
-    traitCommRace <- mean(similarity(curGraph, method = "dice")[1,],na.rm=T)
+    # mean similarity from race (as feedback targeted at race): in terms of traits only
+    traitCommRaceM <- mean(similarity(curGraph, method = "dice")[1,],na.rm=T)
+    # each node's similarity to race (as feedback targeted at race): in terms of traits only
+    traitCommRaceN <- similarity(curGraph, method = "dice")[1,]
     
     distanceMat <- distances(curGraph)
     distanceMat[is.infinite(distanceMat)] <- NA
@@ -543,7 +545,7 @@ for(n in 1:nrow(rawSec)){
                 idDistRaceN, idDistNodW, idDistRaceNW,
                 cI2A.Hub=cI2A.Hub[1:numIdentities],
                 cI2T.Hub=cI2T.Hub[1:numIdentities], pI2A.Hub=pI2A.Hub[1:numIdentities],
-                                   pI2T.Hub=pI2T.Hub[1:numIdentities], nI2A.Hub=nI2A.Hub[1:numIdentities], nI2T.Hub=nI2T.Hub[1:numIdentities])
+                                   pI2T.Hub=pI2T.Hub[1:numIdentities], nI2A.Hub=nI2A.Hub[1:numIdentities], nI2T.Hub=nI2T.Hub[1:numIdentities], traitCommRaceN = traitCommRaceN[1:numIdentities])
     
     }else{
       x1 <- cbind(subID=rep(i,numIdentities), id=idNames, idcode = 1:numIdentities)
@@ -570,7 +572,7 @@ for(n in 1:nrow(rawSec)){
      
   x3 <- cbind(subID = i, idNum = numIdentities, idEdgT = idEdgT, idDensity = density, idTrans = idTrans, idStrengHom = idStrengHom, idPosHom = idPosHom, idStigHom = idStigHom, idSizeSHom = idSzSHom, idSizeUHom = idSzUHom, idSizeDHom = idSzDHom, idInclusHom = idInclusHom, idDifferHom = idDifferHom, traitCommGlob = traitCommGlob,idCommGlob=idCommGlob,
               idCommRaceM=idCommRaceM, idDistGlob=idDistGlob, idDistRaceM=idDistRaceM, idDistGlobW=idDistGlobW, idDistRaceMW=idDistRaceMW, traitDistRaceP=traitDistRaceP, traitDistRaceN=traitDistRaceN,
-              globEff = globEff)
+              globEff = globEff, traitCommRaceM = traitCommRaceM)
       
   if(n==1){
     globalIDDf <- matrix(nrow=0,ncol=ncol(x3))
@@ -1427,10 +1429,28 @@ summarized <- Rmisc::summarySE(data=idLong, measurevar = "streng", groupvars = c
 ```
 
 ```{r}
+promptDf <- rawSec %>% select(Social_PromptA, Social_PromptL, Personal_Prompt, id, Condition, identity)
+promptDf <- promptDf %>% mutate_at(c('Social_PromptA', 'Social_PromptL', 'Personal_Prompt'), ~na_if(., ''))
+promptDf <- promptDf %>% mutate(Prompt = coalesce(Social_PromptA, Social_PromptL, Personal_Prompt)) %>% select(id, Prompt)
+output <- vader::vader_df(promptDf$Prompt)
+output <- output %>% select(compound, pos, neu, neg)
+output <- output %>% rename(compound.v = compound, pos.v = pos, neg.v = neg, neu.v = neu)
+promptDf <- cbind(promptDf, output)
+promptDf <- promptDf %>% rename(subID = id)
+
+indDiff <- merge(indDiff, promptDf, by = "subID", all.x = T)
+fullSimDf <- merge(fullSimDf, promptDf, by = "subID", all.x=T)
+veryLong <- merge(veryLong, promptDf, by = "subID", all.x=T)
+orderDf <- merge(orderDf, promptDf, by = "subID", all.x = T)
+```
+
+
+```{r}
 veryLong <- merge(veryLong, tendSubDf, by = "subID", all.x=T)
 orderDf <- merge(orderDf, tendSubDf, by = "subID", all.x=T)
 idShort <- merge(idShort, tendSubDf, by = "subID", all.x=T)
 indDiff <- merge(indDiff, tendSubDf, by = "subID", all.x=T)
+
 fullSimDf <- merge(fullSimDf, tendSubDf, by = "subID", all.x=T)
 
 
